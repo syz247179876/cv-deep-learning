@@ -1,22 +1,36 @@
 # vit base model parameter
 
 
+# the size of image
 img_size:
   - 224
   - 224
+# kernel size
 patch_size: 16
+# the channel of each picture
 in_chans: 3
+# the total num of classes
 num_classes: 21843
+# the size of each patch, 16x16x3
 embed_dim: 768
+# the num of transformer encoder block
 block_depth: 12
+# multi-head
 num_heads: 12
 qkv_bias: False
+# scaling ratio applied to Q * K.t(), which avoids @ values that are too large,
+# resulting in gradient values that are too small.
 qk_scale: null
+# the ratio used to drop some simples based on stochastic depth
 drop_path_ratio: 0.
+# the ratio of attention dropout
 attn_drop_ratio: 0.
+# the ratio of position embedding dropout
 proj_drop_ratio: 0.
+# the ratio of hidden layer in MLP block
 mlp_ratio: 4.
 act_layer: "nn.GELU"
 embed_layer: "PatchEmbed"
 norm_layer: "nn.LayerNorm"
+# during training, the output channel of the fc layer in the head
 representation_size: 768

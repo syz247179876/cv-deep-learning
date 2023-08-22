@@ -94,7 +94,7 @@ class VOCDataset(Dataset):
         self.use_img_path = self.img_list = os.listdir(self.img_dir)
 
     def pull_item(self, index: int) -> t.Tuple[torch.Tensor, torch.Tensor, str, t.Tuple[int, int]]:
-        img_id = self.img_list[index]
+        img_id = self.use_img_path[index]
         img_path: str = os.path.join(self.img_dir, img_id)
         img = cv2.imread(img_path)
         height, width, channels = img.shape
