@@ -1,0 +1,22 @@
+# vit large model parameter
+
+
+img_size:
+  - 224
+  - 224
+patch_size: 16
+in_chans: 3
+num_classes: 21843  # train in ImageNet-21k
+embed_dim: 1024
+block_depth: 24
+num_heads: 16
+qkv_bias: False
+qk_scale: null
+drop_path_ratio: 0.
+attn_drop_ratio: 0.
+proj_drop_ratio: 0.
+mlp_ratio: 4.
+act_layer: "nn.GELU"
+embed_layer: "PatchEmbed"
+norm_layer: "nn.LayerNorm"
+representation_size: 1024

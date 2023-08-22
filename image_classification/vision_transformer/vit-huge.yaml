@@ -1,0 +1,22 @@
+# vit huge model parameter
+
+
+img_size:
+  - 224
+  - 224
+patch_size: 14
+in_chans: 3
+num_classes: 21843
+embed_dim: 1280
+block_depth: 32
+num_heads: 16
+qkv_bias: False
+qk_scale: null
+drop_path_ratio: 0.
+attn_drop_ratio: 0.
+proj_drop_ratio: 0.
+mlp_ratio: 4.
+act_layer: "nn.GELU"
+embed_layer: "PatchEmbed"
+norm_layer: "nn.LayerNorm"
+representation_size: 1280
