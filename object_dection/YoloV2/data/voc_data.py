@@ -1,13 +1,17 @@
 import os
+import sys
+
 import numpy as np
 import torch
 import typing as t
 import xml.etree.ElementTree as ET
 import cv2
 from torch.utils.data import Dataset
-from ..argument import args_train
-from ..settings import *
-from ..util import Augmentation
+if os.path.dirname(os.getcwd()) not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.getcwd()))
+from argument import args_train
+from settings import *
+from util import Augmentation
 
 
 class VOCDecodeTransform(object):

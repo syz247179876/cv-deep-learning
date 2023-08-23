@@ -1,14 +1,19 @@
 """
 根据YOLO V1论文构建网络结构
 """
+import os
 import random
+import sys
 import typing as t
 import torch
 import torch.nn as nn
 import torchvision.models as tv_model
 
-from ..argument import args_train
-from ..settings import *
+if os.path.dirname(os.getcwd()) not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.getcwd()))
+
+from argument import args_train
+from settings import *
 
 
 def conv1x1(in_planes: int, out_planes: int, stride: int = 1) -> nn.Conv2d:

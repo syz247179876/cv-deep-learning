@@ -40,4 +40,3 @@ SELF_IMAGE_DIR = 'SelfImages'
 # Input Size
 INPUT_SHAPE = 416, 416
 
-from test import *

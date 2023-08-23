@@ -2,11 +2,15 @@
 使用聚类算法生成Anchor Boxes
 """
 import os
+import sys
+
 import numpy
 import numpy as np
 import typing as t
-from settings import *
+if os.path.dirname(os.getcwd()) not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.getcwd()))
 
+from settings import *
 from argument import Args
 
 

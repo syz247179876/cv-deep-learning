@@ -1,15 +1,17 @@
 import os
+import sys
 import typing as t
 import xml.etree.ElementTree as ET
-
 import cv2
 import numpy as np
 import torch
-from torch.utils.data import Dataset
 
-from ..argument import args_train
-from ..settings import *
-from ..utils import ImageAugmentation, Normalization
+from torch.utils.data import Dataset
+if os.path.dirname(os.getcwd()) not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.getcwd()))
+from argument import args_train
+from settings import *
+from utils import ImageAugmentation, Normalization
 
 
 class VOCDecodeTransform(object):

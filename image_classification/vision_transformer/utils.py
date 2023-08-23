@@ -66,5 +66,10 @@ def normalize_factory(mode: str):
 
 
 def classify_collate(batch: t.Iterable[t.Tuple]) -> t.Tuple[torch.Tensor, t.List]:
-    pass
+    labels = []
+    images = []
+    for img, label in batch:
+        images.append(img)
+        labels.append(label)
+    return torch.stack(images, dim=0), torch.tensor(labels)
 
