@@ -30,11 +30,17 @@ class FlowerTransform(object):
 
 class ImageAugmentation(object):
 
-    def __call__(self, img: t.Any, input_shape: t.Tuple = (224, 224), distort: bool = False) -> np.ndarray:
+    def __call__(
+            self,
+            img: t.Any,
+            input_shape: t.Tuple = (224, 224),
+            distort: bool = False,
+            random_crop: bool = True,
+    ) -> t.Any:
         img.convert('RGB')
         # resize image and add grey on image
-        image_data = resize_img_box(img, input_shape, distort)
-        return np.array(image_data)
+        image_data = resize_img_box(img, input_shape, distort, random_crop)
+        return image_data
 
 
 def get_mean_std(img_paths: t.List, input_shape: t.Tuple = (224, 224)):
@@ -87,7 +93,7 @@ class ViTDataset(Dataset):
         self.train_validate_ratio = train_validate_ratio
         self.anno_transform = anno_transform and anno_transform()
         self.img_augmentation = img_augmentation and img_augmentation()
-        self.normalization = normalization and normalization
+        # self.normalization = z_score_
 
         self.img_list, self.classes = self.anno_transform(self.img_dir, opts=self.opts)
         self.distort = distort
@@ -97,7 +103,7 @@ class ViTDataset(Dataset):
     def __len__(self):
         return len(self.use_img)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> t.Tuple[torch.Tensor, int]:
         img, label = self.pull_item(item)
         return img, label
 
@@ -115,8 +121,9 @@ class ViTDataset(Dataset):
         img = Image.open(img_path)
         if self.img_augmentation:
             img = self.img_augmentation(img, distort=self.distort)
-        if self.normalization:
-            img = self.normalization(img, FLOWER_MEAN, FLOWER_STD)
+        # if self.normalization:
+        #     img3 = self.normalization(img, FLOWER_MEAN, FLOWER_STD)
+        img = z_score_(img, FLOWER_MEAN, FLOWER_STD)
         return img, img_label
 
 

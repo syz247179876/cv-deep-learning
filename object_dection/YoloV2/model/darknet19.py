@@ -7,7 +7,6 @@ import sys
 import typing as t
 import torch
 import torch.nn as nn
-import torchvision.models as tv_model
 
 if os.path.dirname(os.getcwd()) not in sys.path:
     sys.path.insert(0, os.path.dirname(os.getcwd()))

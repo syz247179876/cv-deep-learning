@@ -1,7 +1,9 @@
+import functools
 import typing as t
 import random
 import numpy as np
 import torch
+from colorama import Fore
 from torchvision import transforms
 
 from setting import *
@@ -18,7 +20,12 @@ def shuffle(arr: t.List[t.Union[t.Tuple, str]], arr_len: int) -> None:
         arr[i], arr[idx] = arr[idx], arr[i]
 
 
-def resize_img_box(img: t.Any, new_size: t.Tuple[int, int], distort: bool):
+def resize_img_box(
+        img: t.Any,
+        new_size: t.Tuple[int, int],
+        distort: bool,
+        random_crop: bool,
+):
     """
     resize img to new_size.
     use no deformed conversion or deformed conversion
@@ -35,8 +42,10 @@ def resize_img_box(img: t.Any, new_size: t.Tuple[int, int], distort: bool):
         img = img.resize((n_w_, n_h_), Image.BICUBIC)
         new_image = Image.new('RGB', new_size, (128, 128, 128))
         new_image.paste(img, (dw, dh))
+    elif random_crop:
+        new_image = transforms.RandomResizedCrop((n_w, n_h))(img)
     else:
-        new_image = img.resize((n_w, n_h), Image.BICUBIC)
+        new_image = transforms.Resize((n_w, n_h))(img)
     return new_image
 
 
@@ -45,13 +54,15 @@ def normalize_factory(mode: str):
         def simple(img: np.ndarray) -> torch.Tensor:
             return transforms.ToTensor()(img)
 
-        def z_score(img: np.ndarray, mean: t.List, std: t.List) -> np.ndarray:
+        def z_score(img: np.ndarray, mean: t.List, std: t.List) -> torch.Tensor:
             transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize(mean, std)
             ])
             return transform(img)
 
+        @functools.wraps(func)
         def min_max(img: np.ndarray):
             pass
 
@@ -73,3 +84,6 @@ def classify_collate(batch: t.Iterable[t.Tuple]) -> t.Tuple[torch.Tensor, t.List
         labels.append(label)
     return torch.stack(images, dim=0), torch.tensor(labels)
 
+
+def print_log(txt: str, color: t.Any = Fore.GREEN):
+    print(color, txt)

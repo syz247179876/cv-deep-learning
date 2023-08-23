@@ -27,9 +27,18 @@ class Args(object):
         self.parser.add_argument('--print_frequency', type=int, default=60, help='print interval')
         self.parser.add_argument('--save_frequency', type=int, default=4, help='store model interval')
         self.parser.add_argument('--checkpoints_dir', type=str, default=r'./checkpoints_dir', help='store the model')
-
+        self.parser.add_argument('--lr_base', type=float, default=5e-2)
+        self.parser.add_argument('--lr_max', type=float, default=5e-2, help='maximum of learning rate')
+        self.parser.add_argument('--lr_min', type=float, default=5e-5, help='minimum of learning rate')
+        self.parser.add_argument('--weight_decay', type=float, default=5e-4, help='regularization coefficient')
         self.parser.add_argument('--start_epoch', type=int, default=0)
         self.parser.add_argument('--end_epoch', type=int, default=100)
+        self.parser.add_argument('--model', type=str, default='base',
+                                 help='different kind of models with different parameters,'
+                                      'value can be "base", "huge", "large", default is "base"')
+        self.parser.add_argument('--decrease_interval', type=int, default=10)
+        self.parser.add_argument('--freeze_lagers', action='store_true', default=True,
+                                 help='if set true, freeze some layers except head layer')
         self.opts = self.parser.parse_args()
         if torch.cuda.is_available():
             self.opts.use_gpu = True

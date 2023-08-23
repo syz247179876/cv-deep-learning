@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 import typing as t
 
+from augment import args_train
+
 
 def drop_path(x: torch.Tensor, drop_prob: float = 0., training: bool = False) -> torch.Tensor:
     """
@@ -200,9 +202,10 @@ class VisionTransformer(nn.Module):
             act_layer: nn.Module = nn.GELU,
             embed_layer: nn.Module = PatchEmbed,
             norm_layer: nn.Module = nn.LayerNorm,
-            representation_size: t.Optional[int] = None
+            representation_size: t.Optional[int] = None,
     ):
         super(VisionTransformer, self).__init__()
+        self.opts = args_train.opts
         self.nums_classes = num_classes
         self.num_features = self.embed_dim = embed_dim
         # cls_token
@@ -212,6 +215,10 @@ class VisionTransformer(nn.Module):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim)).long()
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + self.num_tokens, embed_dim)).long()
         self.pos_drop = nn.Dropout(proj_drop_ratio)
+
+        if self.opts.use_gpu:
+            self.cls_token = self.cls_token.to(self.opts.gpu_id)
+            self.pos_embed = self.pos_embed.to(self.opts.gpu_id)
 
         # stochastic depth decay rule
         dpr = [x.item() for x in torch.linspace(0, drop_path_ratio, block_depth)]
@@ -292,12 +299,9 @@ class ModelFactory(object):
                         config[key] = globals().get(value)
         self.model = VisionTransformer(**config)
 
-    def main(self, x: torch.Tensor):
-        return self.model(x)
-
 
 if __name__ == '__main__':
     _x = torch.randn(3, 3, 224, 224)
     f = ModelFactory('huge')
-    r = f.main(_x)
-    print(r.size(), r)
+    # r = f.main(_x)
+    # print(r.size(), r)

@@ -10,7 +10,7 @@ patch_size: 16
 # the channel of each picture
 in_chans: 3
 # the total num of classes
-num_classes: 21843
+num_classes: 5
 # the size of each patch, 16x16x3
 embed_dim: 768
 # the num of transformer encoder block
