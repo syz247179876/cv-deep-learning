@@ -1,26 +1,71 @@
 import os.path
+import random
 import typing as t
 
+import cv2
+import numpy as np
+import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from setting import *
 from augment import args_train
-from utils import shuffle
+from utils import shuffle, resize_img_box, normalize_factory
 
 
 class FlowerTransform(object):
     """
-    preprocess flower dataset to decode images and corresponding label
+    preprocess flower dataset to extract images and corresponding label
     """
 
-    def __call__(self, img_dir, *args, **kwargs) -> t.List[t.Tuple]:
+    def __call__(self, img_dir, *args, **kwargs) -> t.Tuple[t.List[t.Tuple[str, int]], t.Dict]:
         files_path: t.List[t.Tuple] = []
+        flower_class = {val: idx for idx, val in enumerate(sorted(os.listdir(img_dir)))}
         for root, dirs, files in os.walk(img_dir):
             if files:
                 for file in files:
-                    files_path.append((os.path.join(root, file), root.split('\\')[-1]))
+                    files_path.append((os.path.join(root, file), flower_class[root.split('\\')[-1]]))
         shuffle(files_path, len(files_path))
-        return files_path
+        return files_path, flower_class
+
+
+class ImageAugmentation(object):
+
+    def __call__(self, img: t.Any, input_shape: t.Tuple = (224, 224), distort: bool = False) -> np.ndarray:
+        img.convert('RGB')
+        # resize image and add grey on image
+        image_data = resize_img_box(img, input_shape, distort)
+        return np.array(image_data)
+
+
+def get_mean_std(img_paths: t.List, input_shape: t.Tuple = (224, 224)):
+    augmentation = ImageAugmentation()
+    images = np.zeros((input_shape[0], input_shape[1], 3, 1))
+    mean = []
+    std = []
+    for i in range(0, len(img_paths), 5):
+        img_path = img_paths[i][0]
+        img = Image.open(img_path)
+        if img.mode != 'RGB':
+            img.convert('RGB')
+        img = augmentation(img, input_shape, distort=True)
+        img = np.array(img)
+        img = img[:, :, :, np.newaxis]
+        images = np.concatenate((images, img), axis=3)
+    images = images.astype(np.float32) / 255.
+    for i in range(3):
+        # flatten to one line
+        pixels = images[:, :, i, :].ravel()
+        mean.append(np.mean(pixels))
+        std.append(np.std(pixels))
+    print(mean, std)
+
+
+@normalize_factory(mode='z_score')
+def z_score_(img: np.ndarray, man: t.List, std: t.List):
+    """
+    do nothing here, without some params needed, as it use z_score function implemented in normalize factory
+    """
+    pass
 
 
 class ViTDataset(Dataset):
@@ -32,6 +77,7 @@ class ViTDataset(Dataset):
             anno_transform: t.Optional[t.Callable] = None,
             img_augmentation: t.Optional[t.Callable] = None,
             normalization: t.Optional[t.Callable] = None,
+            distort: float = False,
     ):
         self.opts = args_train.opts
         self.mode = mode
@@ -39,12 +85,12 @@ class ViTDataset(Dataset):
         self.use_img = []
         self.train_test_ratio = train_test_ratio
         self.train_validate_ratio = train_validate_ratio
-        self.anno_transform = anno_transform()
-        self.img_augmentation = img_augmentation()
-        self.normalization = normalization()
+        self.anno_transform = anno_transform and anno_transform()
+        self.img_augmentation = img_augmentation and img_augmentation()
+        self.normalization = normalization and normalization
 
-        self.img_list = self.anno_transform(self.img_dir, opts=self.opts)
-
+        self.img_list, self.classes = self.anno_transform(self.img_dir, opts=self.opts)
+        self.distort = distort
         func = getattr(self, f'{mode}_data')
         func()
 
@@ -52,22 +98,30 @@ class ViTDataset(Dataset):
         return len(self.use_img)
 
     def __getitem__(self, item):
-        pass
+        img, label = self.pull_item(item)
+        return img, label
 
     def train_data(self):
         self.use_img = self.img_list[: int(len(self.img_list) * self.train_test_ratio)]
 
     def test_data(self):
-        self.use_img = self.img_list[int(len(self.img_list) * self.train_test_ratio): ]
+        self.use_img = self.img_list[int(len(self.img_list) * self.train_test_ratio):]
 
     def validate_date(self):
         pass
 
-    def pull_item(self, index: int):
+    def pull_item(self, index: int) -> t.Tuple[torch.Tensor, int]:
         img_path, img_label = self.img_list[index]
-
+        img = Image.open(img_path)
+        if self.img_augmentation:
+            img = self.img_augmentation(img, distort=self.distort)
+        if self.normalization:
+            img = self.normalization(img, FLOWER_MEAN, FLOWER_STD)
+        return img, img_label
 
 
 if __name__ == '__main__':
-    dataset = ViTDataset(mode='train', anno_transform=FlowerTransform)
-    FlowerTransform()(dataset.img_dir)
+    dataset = ViTDataset(mode='train', anno_transform=FlowerTransform,
+                         img_augmentation=ImageAugmentation, normalization=z_score_, distort=True)
+    # get_mean_std(dataset.use_img)
+    a = dataset[6]

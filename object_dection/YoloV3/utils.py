@@ -11,7 +11,7 @@ def resize_img_box(
         image: t.Any,
         labels: np.ndarray,
         new_size: t.Tuple[int, int],
-        letterbox_image: bool
+        distort: bool
 ) -> t.Tuple[np.ndarray, np.ndarray]:
     """
     1.resize img, add padding to picture <==> scale and paste.
@@ -20,7 +20,7 @@ def resize_img_box(
     o_w, o_h = image.size
     n_w, n_h = new_size
 
-    if letterbox_image:
+    if distort:
         # no deformed conversion
         scale = min(n_w / o_w, n_h / o_h)
         n_w_ = int(o_w * scale)
