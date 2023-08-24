@@ -93,6 +93,8 @@ class Attention(nn.Module):
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
 
+        # use scale to avoid Q @ K.t() too larger so that
+        # when passing softmax, the gradient computed in backward is too small
         self.scale = qk_scale or self.head_dim ** -0.5
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
@@ -139,7 +141,7 @@ class MLP(nn.Module):
         self.fc2 = nn.Linear(hidden_layer, out_channels)
         self.drop = nn.Dropout(proj_drop)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.fc1(x)
         x = self.act(x)
         x = self.drop(x)
