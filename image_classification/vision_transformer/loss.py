@@ -13,7 +13,3 @@ class ViTLoss(nn.Module):
         pred_classes_idx = torch.max(pred, dim=1)[1]
         accu_num = torch.eq(pred_classes_idx, labels).sum()
         return self.loss_function(pred, labels), accu_num
-
-
-
-

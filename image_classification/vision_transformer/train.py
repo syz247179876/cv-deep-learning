@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from augment import args_train
 from data import ViTDataset, FlowerTransform, ImageAugmentation, z_score_
 from loss import ViTLoss
-from utils import classify_collate, print_log
+from utils import classify_collate, print_log, print_detail
 from model import ModelFactory, VisionTransformer
 
 
@@ -19,13 +19,18 @@ class ViTTrain(object):
     def __save_model(
             self,
             model: VisionTransformer,
+            optimizer: torch.optim.Optimizer,
             epoch: int
     ) -> None:
         """
         save model
         """
-        model_name = f'epoch{epoch}.pkl'
-        torch.save(model, os.path.join(self.opts.checkpoints_dir, model_name))
+        model_name = f'epoch{epoch}.pth'
+        torch.save({
+            'last_epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+        }, os.path.join(self.opts.checkpoints_dir, model_name))
 
     @property
     def init_lr(self) -> float:
@@ -37,7 +42,7 @@ class ViTTrain(object):
         max_lr = self.opts.lr_max
         min_lr = self.opts.lr_min
         batch_size = self.opts.batch_size
-        lr = min(max(batch_size / 64 * self.opts.lr_base * 0.5 * 0.5, min_lr), max_lr)
+        lr = min(max(batch_size / 64 * self.opts.lr_base, min_lr), max_lr)
         return lr
 
     def __train_epoch(
@@ -51,23 +56,24 @@ class ViTTrain(object):
     ) -> None:
         total_loss = 0.
         epoch_accu_num = 0
-        for batch, (x, labels) in enumerate(train_loader):
-            if self.opts.use_gpu:
-                x = x.to(self.opts.gpu_id)
-                labels = labels.to(self.opts.gpu_id)
-            pred = model(x)
-            cur_loss, accu_num = loss_obj(pred, labels)
-            epoch_accu_num += accu_num
-            optimizer.zero_grad()
-            cur_loss.backward()
-            optimizer.step()
-            total_loss += cur_loss.item()
+        with open(os.path.join(self.opts.checkpoints_dir, 'log.txt'), 'a+') as f:
+            for batch, (x, labels) in enumerate(train_loader):
+                if self.opts.use_gpu:
+                    x = x.to(self.opts.gpu_id)
+                    labels = labels.to(self.opts.gpu_id)
+                pred = model(x)
+                cur_loss, accu_num = loss_obj(pred, labels)
+                epoch_accu_num += accu_num
+                optimizer.zero_grad()
+                cur_loss.backward()
+                optimizer.step()
+                total_loss += cur_loss.item()
 
-            if batch % self.opts.print_frequency == 0:
-                pass
-        accu_ratio = epoch_accu_num / epoch_accu_num
-        # TODO: print and log
-        # with open(os.path.join(self.opts.checkpoints_dir, 'log.txt'), 'a') as f:
+                if batch % self.opts.print_frequency == 0:
+                    print_detail(epoch, self.opts.end_epoch, batch, train_num // self.opts.batch_size,
+                                 cur_loss.item(), avg_loss=total_loss / (batch + 1), log_f=f, write=True)
+            accu_ratio = epoch_accu_num / train_num
+            print(f'epoch-{epoch} accuracy: {accu_ratio}')
 
     @staticmethod
     def freeze_layers(model: torch.nn.Module):
@@ -96,17 +102,12 @@ class ViTTrain(object):
         )
         train_num = len(train_dataset)
 
-        if not self.opts.pretrain_file:
-            model = ModelFactory(self.opts.model).model
-            print_log(f'Init model---vit-{self.opts.model} successfully!')
-        else:
-            model = torch.load(self.opts.pretrain_file)
-            print_log(f'Load model file {self.opts.pretrain_file} successfully!')
-        loss_obj = ViTLoss()
-
+        model = ModelFactory(self.opts.model).model
+        print_log(f'Init model---vit-{self.opts.model} successfully!')
         if self.opts.use_gpu:
             model.to(self.opts.gpu_id)
         model.train()
+
         # freeze some layers
         if self.opts.freeze_lagers:
             self.freeze_layers(model)
@@ -116,7 +117,19 @@ class ViTTrain(object):
                                     weight_decay=self.opts.weight_decay)
 
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=self.opts.decrease_interval, gamma=0.9)
-        for e in range(self.opts.start_epoch, self.opts.end_epoch):
+
+        # load model, optimizer, last epoch
+        last_epoch = self.opts.start_epoch
+        if self.opts.pretrain_file:
+            checkpoint = torch.load(self.opts.pretrain_file)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            last_epoch = checkpoint['last_epoch']
+            print_log(f'Load model file {self.opts.pretrain_file} successfully!')
+
+        loss_obj = ViTLoss()
+
+        for e in range(last_epoch, self.opts.end_epoch):
             t1 = time.time()
             self.__train_epoch(model, loss_obj, train_loader, optimizer, e, train_num)
             t2 = time.time()

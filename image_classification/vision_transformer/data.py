@@ -20,12 +20,13 @@ class FlowerTransform(object):
     def __call__(self, img_dir, *args, **kwargs) -> t.Tuple[t.List[t.Tuple[str, int]], t.Dict]:
         files_path: t.List[t.Tuple] = []
         flower_class = {val: idx for idx, val in enumerate(sorted(os.listdir(img_dir)))}
+        flower_class_idx = {idx: val for idx, val in enumerate(sorted(os.listdir(img_dir)))}
         for root, dirs, files in os.walk(img_dir):
             if files:
                 for file in files:
                     files_path.append((os.path.join(root, file), flower_class[root.split('\\')[-1]]))
         shuffle(files_path, len(files_path))
-        return files_path, flower_class
+        return files_path, flower_class_idx
 
 
 class ImageAugmentation(object):
@@ -103,9 +104,12 @@ class ViTDataset(Dataset):
     def __len__(self):
         return len(self.use_img)
 
-    def __getitem__(self, item) -> t.Tuple[torch.Tensor, int]:
-        img, label = self.pull_item(item)
-        return img, label
+    def __getitem__(self, item) -> t.Union[t.Tuple[torch.Tensor, int], t.Tuple[torch.Tensor, int, str]]:
+        img, label, img_path = self.pull_item(item)
+        if self.mode == 'train':
+            return img, label
+        elif self.mode == 'test':
+            return img, label, img_path
 
     def train_data(self):
         self.use_img = self.img_list[: int(len(self.img_list) * self.train_test_ratio)]
@@ -116,7 +120,7 @@ class ViTDataset(Dataset):
     def validate_date(self):
         pass
 
-    def pull_item(self, index: int) -> t.Tuple[torch.Tensor, int]:
+    def pull_item(self, index: int) -> t.Tuple[torch.Tensor, int, str]:
         img_path, img_label = self.img_list[index]
         img = Image.open(img_path)
         if self.img_augmentation:
@@ -124,7 +128,7 @@ class ViTDataset(Dataset):
         # if self.normalization:
         #     img3 = self.normalization(img, FLOWER_MEAN, FLOWER_STD)
         img = z_score_(img, FLOWER_MEAN, FLOWER_STD)
-        return img, img_label
+        return img, img_label, img_path
 
 
 if __name__ == '__main__':

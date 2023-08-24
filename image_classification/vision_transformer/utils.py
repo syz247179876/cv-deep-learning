@@ -1,6 +1,8 @@
 import functools
 import typing as t
 import random
+
+import cv2
 import numpy as np
 import torch
 from colorama import Fore
@@ -87,3 +89,35 @@ def classify_collate(batch: t.Iterable[t.Tuple]) -> t.Tuple[torch.Tensor, t.List
 
 def print_log(txt: str, color: t.Any = Fore.GREEN):
     print(color, txt)
+
+
+def print_detail(
+        cur_epoch: int,
+        end_epoch: int,
+        batch: int,
+        iter_total: int,
+        loss_cls: float,
+        avg_loss: float,
+        log_f: t.TextIO,
+        write: bool = False,
+):
+    info = f'Epoch: {cur_epoch}/{end_epoch} \tIter: {batch}/{iter_total}' \
+           f'\tloss_cls: {round(loss_cls, 4)} \tavg_loss: {round(avg_loss, 6)}\n'
+
+    print_log(info, color=Fore.RED)
+    if write:
+        log_f.write(info)
+        log_f.flush()
+
+
+def draw_image(img_path: str, loss: float, pred: torch.Tensor, classes: t.Dict[int, str]):
+    """
+    draw image in testing
+    """
+    img = cv2.imread(img_path)
+    pred_classes_idx = torch.max(pred, dim=1)[1]
+    cv2.imshow(f'class: {classes[pred_classes_idx]} loss: {loss}', img[:, :, ::-1])
+    cv2.waitKey(0)
+
+
+
