@@ -87,6 +87,17 @@ def classify_collate(batch: t.Iterable[t.Tuple]) -> t.Tuple[torch.Tensor, t.List
     return torch.stack(images, dim=0), torch.tensor(labels)
 
 
+def classify_collate_test(batch: t.Iterable[t.Tuple]) -> t.Tuple[torch.Tensor, torch.Tensor, t.List]:
+    labels = []
+    images = []
+    img_paths = []
+    for img, label, img_path in batch:
+        images.append(img)
+        labels.append(label)
+        img_paths.append(img_path)
+    return torch.stack(images, dim=0), torch.tensor(labels), img_paths
+
+
 def print_log(txt: str, color: t.Any = Fore.GREEN):
     print(color, txt)
 
@@ -110,14 +121,21 @@ def print_detail(
         log_f.flush()
 
 
-def draw_image(img_path: str, loss: float, pred: torch.Tensor, classes: t.Dict[int, str]):
+def draw_image(
+        img_path: str,
+        loss: float,
+        pred: torch.Tensor,
+        classes: t.Dict[int, str],
+        label_idx: int,
+        single_display: bool = True,
+) -> bool:
     """
     draw image in testing
     """
     img = cv2.imread(img_path)
-    pred_classes_idx = torch.max(pred, dim=1)[1]
-    cv2.imshow(f'class: {classes[pred_classes_idx]} loss: {loss}', img[:, :, ::-1])
-    cv2.waitKey(0)
-
-
-
+    pred_classes_idx = torch.max(pred, dim=1)[1].item()
+    print(f'prediction class: {classes[pred_classes_idx]} \tactual class: {classes[label_idx]} \tloss: {round(loss, 6)}')
+    if single_display:
+        cv2.imshow(f'class: {classes[pred_classes_idx]} loss: {round(loss, 6)}', img[:, :, ::-1])
+        cv2.waitKey(0)
+    return pred_classes_idx == label_idx

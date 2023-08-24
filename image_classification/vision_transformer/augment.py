@@ -55,9 +55,10 @@ class Args(object):
                                  )
         self.parser.add_argument('--shuffle', action='store_true', default=True)
         self.parser.add_argument('--drop_last', action='store_true', default=True)
-        self.parser.add_argument('--pretrain_file', type=str,
+        self.parser.add_argument('--pretrain_file', type=str, default=r'./checkpoints_dir/epoch200.pth',
                                  help='store the latest model file')
         self.parser.add_argument('--random_seed', type=int, default=42)
+        self.parser.add_argument('--model', type=str, default='base')
         self.opts = self.parser.parse_args()
         if torch.cuda.is_available():
             self.opts.use_gpu = True

@@ -140,7 +140,7 @@ class ViTTrain(object):
                 log_f.write(f'Training one epoch consumes %.2f second\n' % (t2 - t1))
 
                 if e % self.opts.save_frequency == 0 or e == self.opts.end_epoch:
-                    self.__save_model(model, e)
+                    self.__save_model(model, optimizer, e)
 
 
 if __name__ == '__main__':

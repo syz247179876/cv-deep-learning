@@ -302,6 +302,7 @@ class ModelFactory(object):
 
 if __name__ == '__main__':
     _x = torch.randn(3, 3, 224, 224)
-    f = ModelFactory('huge')
+    f = PatchEmbed()
+    f(_x)
     # r = f.main(_x)
     # print(r.size(), r)
