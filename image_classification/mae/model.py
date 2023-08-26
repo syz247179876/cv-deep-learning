@@ -1,3 +1,5 @@
+import argparse
+
 import torch
 import torch.nn as nn
 import typing as t
@@ -95,12 +97,18 @@ class Mask(object):
 
     def __call__(self, patches: torch.Tensor) -> t.Tuple[torch.Tensor, torch.Tensor]:
         num_masked = int(self.num_patches * self.mask_ratio)
-        shuffle_idx = torch.rand(patches, self.num_patches).argsort()
+        shuffle_idx = torch.rand(len(patches[0]), self.num_patches).argsort()
         mask_idx, unmask_idx = shuffle_idx[:, :num_masked], shuffle_idx[:, num_masked:]
         # in order to form a complete broadcasting domain
-        # batch_id @ mask_idx or batch_id @ unmask_idx should be feasible
-        batch_id = torch.arange(3).unsqueeze(dim=1)
+        # batch_id:(b, 1), mask_idx:(b, n_patches)
+        batch_id = torch.arange(len(patches[0])).unsqueeze(dim=1)
         mask_p, unmask_p = patches[batch_id, mask_idx], patches[batch_id, unmask_idx]
+
+        # temp store, they will be used in Decoder
+        setattr(self, 'mask_idx', mask_idx)
+        setattr(self, 'num_masked', num_masked)
+        setattr(self, 'batch_id', batch_id)
+        setattr(self, 'shuffle_idx', shuffle_idx)
         return mask_p, unmask_p
 
 
@@ -171,7 +179,7 @@ class MLP(nn.Module):
         return x
 
 
-class EncoderBlock(nn.Module):
+class TransformerBlock(nn.Module):
     """
     ViT Encoder Block
     """
@@ -189,7 +197,7 @@ class EncoderBlock(nn.Module):
             act_layer: nn.Module = nn.GELU,
             norm_layer: nn.Module = nn.LayerNorm,
     ):
-        super(EncoderBlock, self).__init__()
+        super(TransformerBlock, self).__init__()
         self.norm1 = norm_layer(dim)
         self.multi_attn = Attention(dim, num_heads, qkv_bias, qk_scale, attn_drop_ratio, proj_drop_ratio)
         self.drop_path = DropPath(drop_path_ratio) if drop_path_ratio > 0. else nn.Identity()
@@ -202,8 +210,60 @@ class EncoderBlock(nn.Module):
         return x
 
 
-class Decode(nn.Module):
-    pass
+class Decoder(nn.Module):
+    def __init__(
+            self,
+            opts: argparse.Namespace,
+            embed_dim: int,
+            decoder_dim: int,
+            mask_tokens: torch.Tensor,
+            d_pos_embed: nn.Embedding,
+            mask: Mask,
+            num_heads: int,
+            block_depth: int,
+            mlp_ratio: float,
+            act_layer: nn.Module = nn.GELU,
+            norm_layer: nn.Module = nn.LayerNorm,
+    ):
+        super(Decoder, self).__init__()
+        self.mask_tokens = mask_tokens
+        self.decoder_dim = decoder_dim
+        self.dim_trans = nn.Linear(embed_dim, decoder_dim) if embed_dim != decoder_dim else nn.Identity()
+        self.pos_embed = d_pos_embed
+        self.mask_idx = getattr(mask, 'mask_idx')
+        self.num_masked = getattr(mask, 'num_masked')
+        self.batch_id = getattr(mask, 'batch_id')
+        self.shuffle_idx = getattr(mask, 'shuffle_idx')
+        self.use_gpu = opts.use_gpu
+        self.gpu_id = opts.gpu_id
+        self.decoder = nn.Sequential(*[
+            TransformerBlock(dim=embed_dim, num_heads=num_heads, qkv_bias=False, qk_scale=False,
+                             attn_drop_ratio=0., proj_drop_ratio=0.,
+                             drop_path_ratio=0., mlp_ratio=mlp_ratio, act_layer=act_layer,
+                             norm_layer=norm_layer)
+            for _ in range(block_depth)
+        ])
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        b, _, embed_dim = x.size()
+        # if encoder output dim is not equal to decoder input dim, perform dimension conversion
+        x = self.dim_trans(x)
+        # add pos embedding
+        mask_tokens = self.mask_tokens.expand(b, self.num_masked, -1)
+        # (b, mask_num, decoder_dim)
+        mask_tokens += self.pos_embed(self.mask_idx)
+
+        # concat shared, learnable mask_tokens with encoded unmask patches
+        concat_tokens = torch.cat((mask_tokens, x), dim=1)
+        # un-shuffle to ensure that the order corresponds
+        dec_input_tokens = torch.empty_like(concat_tokens)
+        if self.use_gpu:
+            dec_input_tokens = dec_input_tokens.to(self.gpu_id)
+        dec_input_tokens[self.batch_id, self.shuffle_idx] = concat_tokens
+
+        # decoder is equivalent to stacking multiple transformer blocks
+        decoder_tokens = self.decoder(dec_input_tokens)
+        return decoder_tokens
 
 
 class MAE(nn.Module):
@@ -214,8 +274,11 @@ class MAE(nn.Module):
             patch_size: int = 16,
             in_chans: int = 3,
             embed_dim: int = 768,
+            decoder_dim: int = 768,
             block_depth: int = 12,
+            decoder_block_depth: int = 12,
             num_heads: int = 12,
+            decoder_num_heads: int = 12,
             qkv_bias: bool = False,
             qk_scale: t.Optional[float] = None,
             drop_path_ratio: float = 0.,
@@ -227,6 +290,7 @@ class MAE(nn.Module):
             encoder_block: t.Optional[t.Callable] = None,
             act_layer: t.Optional[nn.Module] = None,
             norm_layer: t.Optional[nn.Module] = None,
+            decoder: t.Optional[nn.Module] = None,
             mode: str = 'split',
 
     ):
@@ -235,12 +299,13 @@ class MAE(nn.Module):
         self.mask = mask or Mask(self.opts.mask_ratio, patch_size * patch_size)
         self.patch_embed = embed_layer or PatchEmbed(img_size, (patch_size, patch_size), in_chans, mode=mode)
 
-        self.encoder_block = encoder_block or EncoderBlock(embed_dim, num_heads, qkv_bias, qk_scale, attn_drop_ratio,
-                                                           proj_drop_ratio, drop_path_ratio, mlp_ratio, act_layer,
-                                                           norm_layer)
-        self.num_tokens = 1
-        self.cls_token = nn.Parameter(torch.zeros(1, self.num_tokens, embed_dim)).long()
-        self.pos_embed = nn.Parameter(torch.zeros(1, self.patch_embed.num_patches + self.num_tokens, embed_dim))
+        self.encoder_block = encoder_block or TransformerBlock(embed_dim, num_heads, qkv_bias, qk_scale,
+                                                               attn_drop_ratio,
+                                                               proj_drop_ratio, drop_path_ratio, mlp_ratio, act_layer,
+                                                               norm_layer)
+        self.cls_tokens = 1
+        self.cls_token = nn.Parameter(torch.zeros(1, self.cls_tokens, embed_dim)).long()
+        self.pos_embed = nn.Parameter(torch.zeros(1, self.patch_embed.num_patches + self.cls_tokens, embed_dim))
         self.pos_drop = nn.Dropout(proj_drop_ratio)
 
         if self.opts.use_gpu:
@@ -250,13 +315,23 @@ class MAE(nn.Module):
         # stochastic depth decay rule
         dpr = [x.item() for x in torch.linspace(0, drop_path_ratio, block_depth)]
         self.blocks = nn.Sequential(*[
-            EncoderBlock(dim=embed_dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                         attn_drop_ratio=attn_drop_ratio, proj_drop_ratio=proj_drop_ratio,
-                         drop_path_ratio=dpr[i], mlp_ratio=mlp_ratio, act_layer=act_layer,
-                         norm_layer=norm_layer)
+            TransformerBlock(dim=embed_dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale,
+                             attn_drop_ratio=attn_drop_ratio, proj_drop_ratio=proj_drop_ratio,
+                             drop_path_ratio=dpr[i], mlp_ratio=mlp_ratio, act_layer=act_layer,
+                             norm_layer=norm_layer)
             for i in range(block_depth)
         ])
         self.norm = norm_layer(embed_dim)
+
+        # Decoder
+
+        # mask token that is shared and learned
+        mask_tokens = nn.Parameter(torch.rand(1, 1, decoder_dim))
+        d_pos_embed = nn.Embedding(self.patch_embed.num_patches, decoder_dim)
+        self.decoder = decoder or Decoder(self.opts, embed_dim, decoder_dim, mask_tokens, d_pos_embed,
+                                          self.mask, decoder_num_heads, decoder_block_depth, mlp_ratio,
+                                          act_layer, norm_layer)
+        self.head = nn.Linear(decoder_dim, patch_size * patch_size * in_chans)
 
     def forward_encoder(self, x: torch.Tensor) -> t.Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -272,14 +347,35 @@ class MAE(nn.Module):
         unmask_patches = self.norm(unmask_patches)
         return unmask_patches, mask_patches
 
-    def forward_decoder(self, unmask_patches: torch.Tensor, mask_patches: torch.Tensor):
+    def forward_decoder(self, unmask_encoder_tokens: torch.Tensor) -> torch.Tensor:
         """
         transformer decoder
         """
-        pass
+        # (b, num, dim)
+        decoded_tokens = self.decoder(unmask_encoder_tokens)
+        # retrieve masked tokens after decoder, (b, mask_num, decoder_dim)
+        masked_tokens = decoded_tokens[getattr(self, 'batch_id'), getattr(self, 'mask_id'), :]
+        return masked_tokens
 
-    def forward(self, x: torch.Tensor):
-        unmask_patches, mask_patches = self.forward_encoder(x)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Encoder:
+            1.Using standard ViT to encoder, applied only on visible, shuffle randomly
+            unmasked patches, about 75% unmasked patches.
+            2.the output of my Encoder Module include two part.
+                (1) encoded unmasked patches (25%)
+                (2) uncoded masked patches (75%)
+        Decoder:
+            note: Downstream Tasks
+            1.The input of MAE decoder is the full set of tokens consisting of encoded visible patches and mask tokens.
+            2.Each mask token is a shared, learned vector that use to predict,
+            mask token add position embedding, un-shuffle and feed to Decoder.
+            3.The Decoder also consist of series of Transformer Block.
+        """
+        unmask_encoder_tokens, mask_encoder_tokens = self.forward_encoder(x)
+        mask_decoder_tokens = self.forward_decoder(unmask_encoder_tokens)
+        mask_decoder_tokens = self.head(mask_decoder_tokens)
+        return mask_decoder_tokens
 
 
 if __name__ == '__main__':
