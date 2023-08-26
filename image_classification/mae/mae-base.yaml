@@ -1,0 +1,49 @@
+# MAE base model parameter
+
+
+# the size of image
+img_size:
+  - 224
+  - 224
+# kernel size
+patch_size: 16
+# the channel of each picture
+in_chans: 3
+# the size of encoder patch, 16x16x3
+embed_dim: 768
+# the size of decoder patch, 16x16x3
+decoder_dim: 768
+# the num of transformer encoder block
+block_depth: 12
+# the num of transformer decoder block
+decoder_block_depth: 12
+# number of multiple heads in encoder
+num_heads: 12
+# number of multiple heads in decoder
+decoder_num_heads: 12
+qkv_bias: False
+# scaling ratio applied to Q * K.t(), which avoids @ values that are too large,
+# resulting in gradient values that are too small.
+qk_scale: null
+# the ratio used to drop some simples based on stochastic depth
+drop_path_ratio: 0.
+# the ratio of attention dropout
+attn_drop_ratio: 0.
+# the ratio of position embedding dropout
+proj_drop_ratio: 0.
+# the ratio of hidden layer in MLP block
+mlp_ratio: 4.
+# customized Embed layer, if value is null, use PatchEmbed Class in mae/model.py
+embed_layer: null
+# customized Mask strategy, if value is null, use Mask Class in mae/model.py
+mask: null
+# customized Encoder block, if value is null, use TransformerBlock Class in mae/model.py
+encoder_block: null
+# customized Decoder, if value is null, use Decoder Class in mae/model.py
+decoder: null
+
+act_layer: "nn.GELU"
+norm_layer: "nn.LayerNorm"
+
+# strategies for generating embedded patches, there are two types implementations, 'split' and 'conv'
+mode: 'split'

@@ -14,11 +14,7 @@ class Args(object):
         self.parser.add_argument('--use_gpu', action='store_true')
         self.parser.add_argument('--gpu_id', type=int, default=None)
         self.parser.add_argument('--num_workers', type=int, default=4)
-        self.parser.add_argument('--base_dir',
-                                 type=str,
-                                 default=r'C:\Users\24717\Projects\dataset',
-                                 help='the base dir of dataset'
-                                 )
+        self.parser.add_argument('--dataset_name', type=str, default='coco')
         self.parser.add_argument('--shuffle', action='store_true', default=True)
         self.parser.add_argument('--drop_last', action='store_true', default=True)
         self.parser.add_argument('--pretrain_file', type=str,
@@ -38,6 +34,8 @@ class Args(object):
         self.parser.add_argument('--decrease_interval', type=int, default=10)
         self.parser.add_argument('--freeze_lagers', action='store_false', default=False,
                                  help='if set true, freeze some layers except head layer')
+        self.parser.add_argument('--mask_ratio', type=float, default=0.75,
+                                 help='the ratio to split masked patches and unmasked patches')
         self.opts = self.parser.parse_args()
         if torch.cuda.is_available():
             self.opts.use_gpu = True
@@ -47,13 +45,9 @@ class Args(object):
         self.parser.add_argument('--batch_size', type=int, default=1)
         self.parser.add_argument('--use_gpu', action='store_true')
         self.parser.add_argument('--gpu_id', type=int, default=None)
-        self.parser.add_argument('--base_dir',
-                                 type=str,
-                                 default=r'',
-                                 help='the base dir of dataset'
-                                 )
         self.parser.add_argument('--shuffle', action='store_true', default=True)
         self.parser.add_argument('--drop_last', action='store_true', default=True)
+        self.parser.add_argument('--dataset_name', type=str, default='coco')
         self.parser.add_argument('--pretrain_file', type=str, default=r'./checkpoints_dir/epoch200.pth',
                                  help='store the latest model file')
         self.parser.add_argument('--random_seed', type=int, default=42)

@@ -1,8 +1,11 @@
 import argparse
+import contextlib
 
 import torch
 import torch.nn as nn
 import typing as t
+
+import yaml
 
 from augment import args_train
 
@@ -62,6 +65,7 @@ class PatchEmbed(nn.Module):
     ):
         super(PatchEmbed, self).__init__()
         self.mode = mode
+        self.patch_size = patch_size
         self.num_patches = (image_size[0] // patch_size[0]) * (image_size[1] // patch_size[1])
         self.conv_embed = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
         self.patches_tuple = (image_size[0] // patch_size[0], image_size[1] // patch_size[1])
@@ -89,24 +93,28 @@ class Mask(object):
     def __init__(
             self,
             mask_ratio: float,
+            num_masked: int,
             num_patches: int,
     ):
         self.mask_ratio = mask_ratio
+        self.num_masked = num_masked
         self.num_patches = num_patches
         self.opts = args_train.opts
 
     def __call__(self, patches: torch.Tensor) -> t.Tuple[torch.Tensor, torch.Tensor]:
-        num_masked = int(self.num_patches * self.mask_ratio)
-        shuffle_idx = torch.rand(len(patches[0]), self.num_patches).argsort()
-        mask_idx, unmask_idx = shuffle_idx[:, :num_masked], shuffle_idx[:, num_masked:]
+        shuffle_idx = torch.rand(len(patches), self.num_patches).argsort()
+        if self.opts.use_gpu:
+            shuffle_idx = shuffle_idx.to(self.opts.gpu_id)
+        mask_idx, unmask_idx = shuffle_idx[:, :self.num_masked], shuffle_idx[:, self.num_masked:]
         # in order to form a complete broadcasting domain
         # batch_id:(b, 1), mask_idx:(b, n_patches)
-        batch_id = torch.arange(len(patches[0])).unsqueeze(dim=1)
+        batch_id = torch.arange(len(patches)).unsqueeze(dim=1)
+        if self.opts.use_gpu:
+            batch_id = batch_id.to(self.opts.gpu_id)
         mask_p, unmask_p = patches[batch_id, mask_idx], patches[batch_id, unmask_idx]
-
         # temp store, they will be used in Decoder
         setattr(self, 'mask_idx', mask_idx)
-        setattr(self, 'num_masked', num_masked)
+        setattr(self, 'unmask_idx', unmask_idx)
         setattr(self, 'batch_id', batch_id)
         setattr(self, 'shuffle_idx', shuffle_idx)
         return mask_p, unmask_p
@@ -205,8 +213,8 @@ class TransformerBlock(nn.Module):
         self.mlp = MLP(dim, int(dim * mlp_ratio), dim, act_layer, proj_drop_ratio)
 
     def forward(self, x: torch.Tensor):
-        x += self.drop_path(self.multi_attn(self.norm1(x)))
-        x += self.drop_path(self.mlp(self.norm2(x)))
+        x = x + self.drop_path(self.multi_attn(self.norm1(x)))
+        x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 
 
@@ -226,14 +234,11 @@ class Decoder(nn.Module):
             norm_layer: nn.Module = nn.LayerNorm,
     ):
         super(Decoder, self).__init__()
+        self.mask = mask
         self.mask_tokens = mask_tokens
         self.decoder_dim = decoder_dim
         self.dim_trans = nn.Linear(embed_dim, decoder_dim) if embed_dim != decoder_dim else nn.Identity()
         self.pos_embed = d_pos_embed
-        self.mask_idx = getattr(mask, 'mask_idx')
-        self.num_masked = getattr(mask, 'num_masked')
-        self.batch_id = getattr(mask, 'batch_id')
-        self.shuffle_idx = getattr(mask, 'shuffle_idx')
         self.use_gpu = opts.use_gpu
         self.gpu_id = opts.gpu_id
         self.decoder = nn.Sequential(*[
@@ -245,21 +250,29 @@ class Decoder(nn.Module):
         ])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+
+        mask_idx = getattr(self.mask, 'mask_idx')
+        num_masked = getattr(self.mask, 'num_masked')
+        batch_id = getattr(self.mask, 'batch_id')
+        shuffle_idx = getattr(self.mask, 'shuffle_idx')
+
         b, _, embed_dim = x.size()
         # if encoder output dim is not equal to decoder input dim, perform dimension conversion
         x = self.dim_trans(x)
+        # TOD0: discard cls_token
+        x = x[:, 1:, :]
         # add pos embedding
-        mask_tokens = self.mask_tokens.expand(b, self.num_masked, -1)
-        # (b, mask_num, decoder_dim)
-        mask_tokens += self.pos_embed(self.mask_idx)
+        # note: this operation can be change the memory layout of Tensor,
+        # so use a = a + b, instead of a += b
+        mask_tokens = self.mask_tokens.expand(b, num_masked, -1)
+        # (b, mask_num, decoder_dim), add position embedding to mask patches.
+        mask_tokens = mask_tokens + self.pos_embed(mask_idx)
 
         # concat shared, learnable mask_tokens with encoded unmask patches
         concat_tokens = torch.cat((mask_tokens, x), dim=1)
         # un-shuffle to ensure that the order corresponds
         dec_input_tokens = torch.empty_like(concat_tokens)
-        if self.use_gpu:
-            dec_input_tokens = dec_input_tokens.to(self.gpu_id)
-        dec_input_tokens[self.batch_id, self.shuffle_idx] = concat_tokens
+        dec_input_tokens[batch_id, shuffle_idx] = concat_tokens
 
         # decoder is equivalent to stacking multiple transformer blocks
         decoder_tokens = self.decoder(dec_input_tokens)
@@ -296,7 +309,9 @@ class MAE(nn.Module):
     ):
         super(MAE, self).__init__()
         self.opts = args_train.opts
-        self.mask = mask or Mask(self.opts.mask_ratio, patch_size * patch_size)
+        num_patches = int(img_size[0] * img_size[1] / (patch_size * patch_size))
+        num_masked = int(num_patches * self.opts.mask_ratio)
+        self.mask = mask or Mask(self.opts.mask_ratio, num_masked, num_patches)
         self.patch_embed = embed_layer or PatchEmbed(img_size, (patch_size, patch_size), in_chans, mode=mode)
 
         self.encoder_block = encoder_block or TransformerBlock(embed_dim, num_heads, qkv_bias, qk_scale,
@@ -305,7 +320,7 @@ class MAE(nn.Module):
                                                                norm_layer)
         self.cls_tokens = 1
         self.cls_token = nn.Parameter(torch.zeros(1, self.cls_tokens, embed_dim)).long()
-        self.pos_embed = nn.Parameter(torch.zeros(1, self.patch_embed.num_patches + self.cls_tokens, embed_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches - num_masked + self.cls_tokens, embed_dim)).long()
         self.pos_drop = nn.Dropout(proj_drop_ratio)
 
         if self.opts.use_gpu:
@@ -326,8 +341,11 @@ class MAE(nn.Module):
         # Decoder
 
         # mask token that is shared and learned
-        mask_tokens = nn.Parameter(torch.rand(1, 1, decoder_dim))
+        # note: the type of mask_tokens should be int64, as needed to embed by nn.Embedding
+        mask_tokens = nn.Parameter(torch.rand(1, 1, decoder_dim)).long()
         d_pos_embed = nn.Embedding(self.patch_embed.num_patches, decoder_dim)
+        if self.opts.use_gpu:
+            mask_tokens = mask_tokens.to(self.opts.gpu_id)
         self.decoder = decoder or Decoder(self.opts, embed_dim, decoder_dim, mask_tokens, d_pos_embed,
                                           self.mask, decoder_num_heads, decoder_block_depth, mlp_ratio,
                                           act_layer, norm_layer)
@@ -341,11 +359,11 @@ class MAE(nn.Module):
         mask_patches, unmask_patches = self.mask(patches)
         b, _, _ = unmask_patches.size()
         cls_token = self.cls_token.expand(b, -1, -1)
-        unmask_patches = torch.cat((cls_token, unmask_patches), dim=1)
-        unmask_patches = self.pos_drop(unmask_patches + self.pos_embed)
-        unmask_patches = self.blocks(unmask_patches)
-        unmask_patches = self.norm(unmask_patches)
-        return unmask_patches, mask_patches
+        unmask_tokens = torch.cat((cls_token, unmask_patches), dim=1)
+        unmask_tokens = self.pos_drop(unmask_tokens + self.pos_embed)
+        unmask_tokens = self.blocks(unmask_tokens)
+        unmask_tokens = self.norm(unmask_tokens)
+        return unmask_tokens, mask_patches
 
     def forward_decoder(self, unmask_encoder_tokens: torch.Tensor) -> torch.Tensor:
         """
@@ -354,11 +372,12 @@ class MAE(nn.Module):
         # (b, num, dim)
         decoded_tokens = self.decoder(unmask_encoder_tokens)
         # retrieve masked tokens after decoder, (b, mask_num, decoder_dim)
-        masked_tokens = decoded_tokens[getattr(self, 'batch_id'), getattr(self, 'mask_id'), :]
+        masked_tokens = decoded_tokens[getattr(self.mask, 'batch_id'), getattr(self.mask, 'mask_idx'), :]
         return masked_tokens
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> t.Tuple[torch.Tensor, torch.Tensor]:
         """
+        *shuffle and un-shuffle
         Encoder:
             1.Using standard ViT to encoder, applied only on visible, shuffle randomly
             unmasked patches, about 75% unmasked patches.
@@ -372,14 +391,35 @@ class MAE(nn.Module):
             mask token add position embedding, un-shuffle and feed to Decoder.
             3.The Decoder also consist of series of Transformer Block.
         """
-        unmask_encoder_tokens, mask_encoder_tokens = self.forward_encoder(x)
+        unmask_encoder_tokens, mask_patches = self.forward_encoder(x)
         mask_decoder_tokens = self.forward_decoder(unmask_encoder_tokens)
         mask_decoder_tokens = self.head(mask_decoder_tokens)
-        return mask_decoder_tokens
+        return mask_decoder_tokens, mask_patches
+
+
+class ModelFactory(object):
+    """
+    Model Factory
+    """
+
+    def __init__(self, model_name: str = 'base'):
+        assert model_name in ('base',), 'model name should be "base"'
+        with open(rf'mae-{model_name}.yaml', 'r') as m_f:
+            config = yaml.safe_load(m_f)
+        with contextlib.suppress(NameError):
+            for key, value in config.items():
+                if isinstance(value, str):
+                    if value.startswith('nn'):
+                        config[key] = getattr(nn, config.get(key).split('.')[-1])
+                    else:
+                        config[key] = globals().get(value, value)
+        self.model = MAE(**config)
 
 
 if __name__ == '__main__':
     _x = torch.randn((2, 3, 224, 224))
-    patch = PatchEmbed(mode='split')
-    res = patch(_x)
-    print(res.size(), res)
+    _x = _x.to(0)
+    model = ModelFactory(model_name='base').model
+    model = model.to(0)
+    pred, label = model(_x)
+    print(pred.size(), label.size())

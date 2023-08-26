@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import torch
 from PIL import Image
+from PIL.JpegImagePlugin import JpegImageFile
 from torch.utils.data import Dataset
 from setting import *
 from augment import args_train
@@ -17,7 +18,7 @@ class FlowerTransform(object):
     preprocess flower dataset to extract images and corresponding label
     """
 
-    def __call__(self, img_dir, *args, **kwargs) -> t.Tuple[t.List[t.Tuple[str, int]], t.Dict]:
+    def __call__(self, img_dir: str, *args, **kwargs) -> t.Tuple[t.List[t.Tuple[str, int]], t.Dict]:
         files_path: t.List[t.Tuple] = []
         flower_class = {val: idx for idx, val in enumerate(sorted(os.listdir(img_dir)))}
         flower_class_idx = {idx: val for idx, val in enumerate(sorted(os.listdir(img_dir)))}
@@ -33,11 +34,11 @@ class ImageAugmentation(object):
 
     def __call__(
             self,
-            img: t.Any,
+            img: JpegImageFile,
             input_shape: t.Tuple = (224, 224),
             distort: bool = False,
             random_crop: bool = True,
-    ) -> t.Any:
+    ) -> JpegImageFile:
         img.convert('RGB')
         # resize image and add grey on image
         image_data = resize_img_box(img, input_shape, distort, random_crop)
@@ -121,7 +122,7 @@ class ViTDataset(Dataset):
         pass
 
     def pull_item(self, index: int) -> t.Tuple[torch.Tensor, int, str]:
-        img_path, img_label = self.img_list[index]
+        img_path, img_label = self.use_img[index]
         img = Image.open(img_path)
         if self.img_augmentation:
             img = self.img_augmentation(img, distort=self.distort)

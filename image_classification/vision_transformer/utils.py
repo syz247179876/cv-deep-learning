@@ -5,6 +5,7 @@ import random
 import cv2
 import numpy as np
 import torch
+from PIL.JpegImagePlugin import JpegImageFile
 from colorama import Fore
 from torchvision import transforms
 
@@ -23,11 +24,11 @@ def shuffle(arr: t.List[t.Union[t.Tuple, str]], arr_len: int) -> None:
 
 
 def resize_img_box(
-        img: t.Any,
+        img: JpegImageFile,
         new_size: t.Tuple[int, int],
         distort: bool,
         random_crop: bool,
-):
+) -> JpegImageFile:
     """
     resize img to new_size.
     use no deformed conversion or deformed conversion
