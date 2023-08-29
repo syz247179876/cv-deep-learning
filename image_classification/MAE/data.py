@@ -7,12 +7,13 @@ from PIL import Image
 from PIL.JpegImagePlugin import JpegImageFile
 from torch.utils.data import Dataset
 from torchvision import transforms
-from augment import args_train
 from setting import *
-from utils import shuffle
+
+from augment import args_train
+from util import shuffle
 
 
-class FlowerTransform(object):
+class FLOWERTransform(object):
     """
     Flower Dataset
     """
@@ -66,7 +67,8 @@ class ImageAugmentation(object):
     ) -> torch.Tensor:
         img = img.convert('RGB')
         transform = transforms.Compose([
-            transforms.Resize(input_shape),
+            transforms.RandomResizedCrop(input_shape, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
+            transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             # using z-score normalization can improve the latent representation learned by the model during training
             transforms.Normalize(mean, std),
@@ -122,9 +124,3 @@ class MAEDataset(Dataset):
 
     def validate_data(self):
         pass
-
-
-# if __name__ == '__main__':
-#     xxx = globals().get(f'COCOTransform', None)
-#     if getattr(xxx, 'extract'):
-#         print(222)

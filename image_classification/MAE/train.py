@@ -1,3 +1,4 @@
+import math
 import os.path
 import time
 
@@ -7,9 +8,9 @@ from torch.utils.data import DataLoader
 
 from augment import args_train
 from data import MAEDataset, ImageAugmentation
-from utils import print_detail, mae_collate, print_log
+from util import print_detail, mae_collate, print_log
 from loss import MAELoss
-from model import MAE, ModelFactory
+from model.mae import MAE, model_factory
 
 
 class MAETrain(object):
@@ -60,8 +61,8 @@ class MAETrain(object):
             for batch, (x, _) in enumerate(train_loader):
                 if self.opts.use_gpu:
                     x = x.to(self.opts.gpu_id)
-                pred_tokens, labels = model(x)
-                cur_loss = loss_obj(pred_tokens, labels)
+                pred, mask, target = model(x)
+                cur_loss = loss_obj(pred, target, mask)
                 optimizer.zero_grad()
                 cur_loss.backward()
                 optimizer.step()
@@ -87,14 +88,20 @@ class MAETrain(object):
         )
         train_num = len(train_dataset)
 
-        model = ModelFactory(self.opts.model).model
+        model = model_factory(model_name=self.opts.model, load_file=True)
         print_log(f'Init model---MAE-{self.opts.model} successfully!')
         if self.opts.use_gpu:
             model.to(self.opts.gpu_id)
         model.train()
-        optimizer = torch.optim.SGD(model.parameters(), lr=self.init_lr, momentum=0.9,
-                                    weight_decay=self.opts.weight_decay)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=self.opts.decrease_interval, gamma=0.9)
+
+        # optimizer = torch.optim.SGD(model.parameters(), lr=self.init_lr, momentum=0.9,
+        #                             weight_decay=self.opts.weight_decay)
+        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=self.opts.decrease_interval, gamma=0.85)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=self.opts.lr_base * self.opts.batch_size / 256,
+                                  betas=(0.9, 0.95), weight_decay=self.opts.weight_decay)
+        lr_func = lambda epoch: min((epoch + 1) / (self.opts.decrease_interval + 1e-8),
+                                    0.5 * (math.cos(epoch / self.opts.end_epoch * math.pi) + 1))
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_func, verbose=True)
         last_epoch = self.opts.start_epoch
         if self.opts.pretrain_file:
             checkpoint = torch.load(self.opts.pretrain_file)

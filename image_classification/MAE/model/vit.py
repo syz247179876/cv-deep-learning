@@ -1,11 +1,11 @@
-import contextlib
+import typing as t
 from collections import OrderedDict
-import yaml
+
 import torch
 import torch.nn as nn
-import typing as t
+from torch.nn.init import trunc_normal_
 
-from augment import args_train
+from image_classification.MAE.augment import args_train
 
 
 def drop_path(x: torch.Tensor, drop_prob: float = 0., training: bool = False) -> torch.Tensor:
@@ -24,7 +24,9 @@ def drop_path(x: torch.Tensor, drop_prob: float = 0., training: bool = False) ->
     keep_prob = 1 - drop_prob
     shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
     random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
-    random_tensor = torch.floor(random_tensor)  # binarize
+    # binarize, get one or zero
+    random_tensor = torch.floor(random_tensor)
+    # enhance feature of samples that skip residual block
     output = x.div(keep_prob) * random_tensor
     return output
 
@@ -47,37 +49,45 @@ class DropPath(nn.Module):
 
 class PatchEmbed(nn.Module):
     """
-    construct patch embedding, concat cls_token and add position embedding.
-    Taking 224x224 size for example, split 224x224 into 14x14 = 196 patches,
-    this dim is (B, C, H, W), we should transform it to (B, N, P X P X C),
-    actually, it can use conv, its kernel size is 16x16, stride is 16, and obtained
-    the patches embedding, then concat the learnable and sharable cls_token and position embedding.
+    Split the whole image into different patches.
+    Here implement two function, conv and split
     """
 
     def __init__(
             self,
-            img_size: t.Union[t.List, t.Tuple] = (224, 224),
-            patch_size: int = 16,
+            image_size: t.Tuple[int, int] = (224, 224),
+            patch_size: t.Tuple[int, int] = (16, 16),
             in_chans: int = 3,
             embed_dim: int = 768,
+            mode: str = 'conv'
     ):
         super(PatchEmbed, self).__init__()
-        self.num_patches = (img_size[0] // patch_size) * (img_size[1] // patch_size)
-        self.image_size = img_size
-        self.in_chans = in_chans
-        self.embed_dim = embed_dim
-        self.embed = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
+        self.mode = mode
+        self.patch_size = patch_size
+        self.num_patches = (image_size[0] // patch_size[0]) * (image_size[1] // patch_size[1])
+        if mode == 'conv':
+            self.conv_embed = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
+        self.patches_tuple = (image_size[0] // patch_size[0], image_size[1] // patch_size[1])
 
-    def forward(self, x: torch.Tensor):
-        # batch, channel, h, w = x.size()
-        # assert h == self.image_size[0] and w == self.image_size[1]
-        return self.embed(x).flatten(2, -1).transpose(1, 2)
+    def forward_conv(self, x: torch.Tensor) -> torch.Tensor:
+        return self.conv_embed(x).flatten(2, -1).transpose(1, 2)
+
+    def forward_split(self, x: torch.Tensor) -> torch.Tensor:
+        b, c, h, w = x.size()
+        patches = x.view(b, c, self.patches_tuple[0], self.patch_size[0], self.patches_tuple[1], self.patch_size[1])
+        patches = patches.permute(0, 2, 4, 3, 5, 1).reshape(b, self.num_patches, -1)
+        return patches
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        func = getattr(self, f'forward_{self.mode}')
+        return func(x)
 
 
 class Attention(nn.Module):
     """
-    Attention Module
-    q,k,v are liner trans
+    Attention Module --- multi-head self-attention
+    The attention in MAE based on standard ViT, while the encoder in MAE only
+    operates on a small subset (about 25%) of full patches, called unmasked patches.
     """
 
     def __init__(
@@ -92,28 +102,22 @@ class Attention(nn.Module):
         super(Attention, self).__init__()
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
-
-        # use scale to avoid Q @ K.t() too larger so that
-        # when passing softmax, the gradient computed in backward is too small
         self.scale = qk_scale or self.head_dim ** -0.5
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         batch, num, channel = x.size()
         qkv = self.qkv(x)
         qkv = qkv.reshape(batch, num, 3, self.num_heads, channel // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[1]
-         # 将Q中每一个vector与K中每一个vector计算attention, 进行sca5le缩放, 避免点积带来的方差影响，
-        # 得到a(i,j), 然后经过softmax得到key的权重
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
         attn = q @ k.transpose(-2, -1) * self.scale
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
-        # 计算k经过softmax得到的key的权重，然后乘上对应的value向量，得到self-attention score
-        # 即k个key向量对应的value向量的加权平均值
         b = (attn @ v).transpose(1, 2).reshape(batch, num, channel)
         b = self.proj(b)
         b = self.proj_drop(b)
@@ -121,22 +125,19 @@ class Attention(nn.Module):
 
 
 class MLP(nn.Module):
-    """
-    MLP layer, include two FC and one activation
-    """
 
     def __init__(
             self,
-            in_channels: t.Optional[int] = None,
-            hidden_channels: t.Optional[int] = None,
-            out_channels: t.Optional[int] = None,
+            in_chans: t.Optional[int] = None,
+            hidden_chans: t.Optional[int] = None,
+            out_chans: t.Optional[int] = None,
             act_layer: nn.Module = nn.GELU,
             proj_drop: float = 0.
     ):
         super(MLP, self).__init__()
-        hidden_layer = hidden_channels or in_channels
-        out_channels = out_channels or in_channels
-        self.fc1 = nn.Linear(in_channels, hidden_layer)
+        hidden_layer = hidden_chans or in_chans
+        out_channels = out_chans or in_chans
+        self.fc1 = nn.Linear(in_chans, hidden_layer)
         self.act = act_layer()
         self.fc2 = nn.Linear(hidden_layer, out_channels)
         self.drop = nn.Dropout(proj_drop)
@@ -152,14 +153,13 @@ class MLP(nn.Module):
 
 class TransformerBlock(nn.Module):
     """
-    Transformer Block, which include LayerNorm, Residual Block, MSA and MLP
-    the dimension of hidden layer is 4x larger than in_channels and out_channels
+    ViT Encoder Block
     """
 
     def __init__(
             self,
             dim: int,
-            num_heads: int = 8,
+            num_heads: int,
             qkv_bias: bool = False,
             qk_scale: t.Optional[float] = None,
             attn_drop_ratio: float = 0.,
@@ -167,19 +167,17 @@ class TransformerBlock(nn.Module):
             drop_path_ratio: float = 0.,
             mlp_ratio: float = 4.,
             act_layer: nn.Module = nn.GELU,
-            norm_layer: nn.Module = nn.LayerNorm
+            norm_layer: nn.Module = nn.LayerNorm,
     ):
         super(TransformerBlock, self).__init__()
         self.norm1 = norm_layer(dim)
-        self.attn = Attention(dim, num_heads, qkv_bias, qk_scale, attn_drop_ratio, proj_drop_ratio)
-        self.norm2 = norm_layer(dim)
-        mlp_hidden_ratio = int(mlp_ratio * dim)
-        self.mlp = MLP(in_channels=dim, hidden_channels=mlp_hidden_ratio,
-                       out_channels=dim, proj_drop=proj_drop_ratio, act_layer=act_layer)
+        self.multi_attn = Attention(dim, num_heads, qkv_bias, qk_scale, attn_drop_ratio, proj_drop_ratio)
         self.drop_path = DropPath(drop_path_ratio) if drop_path_ratio > 0. else nn.Identity()
+        self.norm2 = norm_layer(dim)
+        self.mlp = MLP(dim, int(dim * mlp_ratio), dim, act_layer, proj_drop_ratio)
 
     def forward(self, x: torch.Tensor):
-        x = x + self.drop_path(self.attn(self.norm1(x)))
+        x = x + self.drop_path(self.multi_attn(self.norm1(x)))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 
@@ -191,7 +189,7 @@ class VisionTransformer(nn.Module):
             img_size: t.Union[t.List, t.Tuple] = (224, 224),
             patch_size: int = 16,
             in_chans: int = 3,
-            num_classes: int = 1000,
+            num_classes: t.Optional[int] = None,
             embed_dim: int = 768,
             block_depth: int = 12,
             num_heads: int = 8,
@@ -204,23 +202,27 @@ class VisionTransformer(nn.Module):
             act_layer: nn.Module = nn.GELU,
             embed_layer: nn.Module = PatchEmbed,
             norm_layer: nn.Module = nn.LayerNorm,
+            pos_embed_mode: str = 'cosine',
             representation_size: t.Optional[int] = None,
+            classification: t.Optional[bool] = False,
+            pool: str = 'cls',
     ):
         super(VisionTransformer, self).__init__()
         self.opts = args_train.opts
         self.nums_classes = num_classes
         self.num_features = self.embed_dim = embed_dim
         # cls_token
-        self.num_tokens = 1
+        self.cls_tokens = 1
         self.patch_embed = embed_layer(img_size, patch_size, in_chans, embed_dim)
         num_patches = self.patch_embed.num_patches
-        self.cls_token = nn.Parameter(torch.zeros(1, self.num_tokens, embed_dim)).long()
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + self.num_tokens, embed_dim)).long()
+        self.cls_token = nn.Parameter(torch.zeros(1, self.cls_tokens, embed_dim))
+        if pos_embed_mode == 'cosine':
+            # TODO: sin-cos embedding init
+            assert 'need to implement sin-cos position embedding'
+        else:
+            # learnable position embedding
+            self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + self.cls_tokens, embed_dim))
         self.pos_drop = nn.Dropout(proj_drop_ratio)
-
-        if self.opts.use_gpu:
-            self.cls_token = self.cls_token.to(self.opts.gpu_id)
-            self.pos_embed = self.pos_embed.to(self.opts.gpu_id)
 
         # stochastic depth decay rule
         dpr = [x.item() for x in torch.linspace(0, drop_path_ratio, block_depth)]
@@ -247,10 +249,35 @@ class VisionTransformer(nn.Module):
             self.has_logit = False
             self.pre_logit = nn.Identity()
 
+        self.pool = pool
+        self.classification = classification
         # classifier head
-        self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
+        if classification:
+            self.class_head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
 
-        # TODO: weight init
+    def _init_vit_weights(self, module):
+        """
+        ViT weight initialization
+        """
+        if isinstance(module, nn.Linear):
+            if module.out_features == self.num_classes:
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            else:
+                trunc_normal_(module.weight, std=.02)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+        elif isinstance(module, nn.Conv2d):
+            # NOTE conv was left to pytorch default in my original init
+            nn.init.xavier_uniform_(module.weight)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+
+        elif isinstance(module, (nn.LayerNorm, nn.GroupNorm, nn.BatchNorm2d)):
+            nn.init.ones_(module.weight)
+            nn.init.zeros_(module.bias)
 
     def forward_feature(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -265,8 +292,7 @@ class VisionTransformer(nn.Module):
         x = self.pos_drop(x + self.pos_embed)
         x = self.blocks(x)
         x = self.norm(x)
-        # extract cls token, according to the whole batch, the whole patches
-        return self.pre_logit(x[:, 0])
+        return x
 
     def forward(self, x: torch.Tensor):
         """
@@ -279,32 +305,12 @@ class VisionTransformer(nn.Module):
         """
         # step 1 and 2
         x = self.forward_feature(x)
-        x = self.head(x)
+        if self.pool == 'mean':
+            x = x.mean(dim=1)
+        elif self.pool == 'cls':
+            x = x[:, 0]
+        else:
+            raise ValueError('pool must be "mean" or "cls"')
+        if self.classification:
+            x = self.head(x)
         return x
-
-
-class ModelFactory(object):
-    """
-    Model Factory
-    """
-
-    def __init__(self, model_name: str = 'base'):
-        assert model_name in ('base', 'huge', 'large'), 'model name should be "base", "huge", "large"'
-        with open(rf'vit-{model_name}.yaml', 'r') as m_f:
-            config = yaml.safe_load(m_f)
-        with contextlib.suppress(NameError):
-            for key, value in config.items():
-                if isinstance(value, str):
-                    if value.startswith('nn'):
-                        config[key] = getattr(nn, config.get(key).split('.')[-1])
-                    else:
-                        config[key] = globals().get(value)
-        self.model = VisionTransformer(**config)
-
-
-if __name__ == '__main__':
-    _x = torch.randn(3, 3, 224, 224)
-    f = PatchEmbed()
-    res = f(_x)
-    # r = f.main(_x)
-    # print(r.size(), r)
