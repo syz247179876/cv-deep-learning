@@ -48,7 +48,7 @@ class Args(object):
         self.parser.add_argument('--shuffle', action='store_true', default=True)
         self.parser.add_argument('--drop_last', action='store_true', default=False)
         self.parser.add_argument('--dataset_name', type=str, default='flower')
-        self.parser.add_argument('--pretrain_file', type=str, default=r'./checkpoints_dir/mae_pretrain_vit_base.pth',
+        self.parser.add_argument('--pretrain_file', type=str, default=r'./checkpoints_dir/epoch80.pth',
                                  help='store the latest model file')
         self.parser.add_argument('--random_seed', type=int, default=42)
         self.parser.add_argument('--num_workers', type=int, default=1)

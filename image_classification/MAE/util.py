@@ -68,10 +68,10 @@ def reconstruction(
         b, 14, 14,
         16, 16, 3
     ).permute(0, 5, 1, 3, 2, 4).reshape(b, 3, 224, 224)
-    recons_img = (recons_img * 255.).type(torch.uint8)
-    patches_img = (patches_img * 255.).type(torch.uint8)
-    # recons_img = z_score_denormalizer(recons_img, mean, std)
-    # patches_img = z_score_denormalizer(recons_img, mean, std)
+    # recons_img = (recons_img * 255.).type(torch.uint8)
+    # patches_img = (patches_img * 255.).type(torch.uint8)
+    recons_img = z_score_denormalizer(recons_img, mean, std)
+    patches_img = z_score_denormalizer(patches_img, mean, std)
     return recons_img, patches_img
 
 

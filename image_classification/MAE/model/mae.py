@@ -30,7 +30,6 @@ class Mask(object):
         Per-sample shuffling is done by argsort random noise.
         x: [b, num, dim], sequence
         """
-        setattr(self, '_target', x)
         b, num, dim = x.size()
         len_keep = int(num * self.mask_ratio)
 
@@ -151,6 +150,7 @@ class MAE(nn.Module):
     def forward_decoder(self, x: torch.Tensor, idx_storage: torch.Tensor):
         x = self.decoder_embed(x)
         b, num, dim = x.size()
+        setattr(self, '_target', x)
         # ignore cls token
         mask_tokens = self.mask_token.repeat(b, idx_storage.shape[1] - num + 1, 1)
         x_ = torch.cat((x[:, 1:, :], mask_tokens), dim=1)
@@ -170,7 +170,7 @@ class MAE(nn.Module):
     def forward(self, x: torch.Tensor) -> t.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         unmask_patches, mask, idx_storage = self.forward_encoder(x)
         pred = self.forward_decoder(unmask_patches, idx_storage)
-        return pred, mask, getattr(self.mask, '_target')
+        return pred, mask, getattr(self, '_target')
 
 
 def model_factory(

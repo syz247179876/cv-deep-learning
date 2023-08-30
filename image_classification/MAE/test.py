@@ -33,7 +33,7 @@ class MAETest(object):
         model = model_factory(model_name=self.opts.model, load_file=True)
         assert self.opts.pretrain_file, 'no specified weight file to load!'
         checkpoint = torch.load(self.opts.pretrain_file)
-        model.load_state_dict(checkpoint['model'])
+        model.load_state_dict(checkpoint['model_state_dict'])
         print_log(f'Load model file {self.opts.pretrain_file} successfully!')
         if self.opts.use_gpu:
             model.to(self.opts.gpu_id)
