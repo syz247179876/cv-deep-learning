@@ -305,6 +305,7 @@ class VisionTransformer(nn.Module):
         """
         # step 1 and 2
         x = self.forward_feature(x)
+        # like GAP in CNN
         if self.pool == 'mean':
             x = x.mean(dim=1)
         elif self.pool == 'cls':
