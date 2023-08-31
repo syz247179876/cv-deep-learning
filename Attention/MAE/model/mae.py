@@ -6,9 +6,9 @@ import typing as t
 
 import yaml
 
-from image_classification.MAE.augment import args_train
-from image_classification.MAE.util import init_weights
-from image_classification.MAE.utils.pos_embed import get_2d_sincos_pos_embed
+from Attention.MAE.augment import args_train
+from Attention.MAE.util import init_weights
+from Attention.MAE.utils.pos_embed import get_2d_sincos_pos_embed
 from .vit import PatchEmbed, TransformerBlock
 
 
@@ -137,6 +137,7 @@ class MAE(nn.Module):
     def forward_encoder(self, x: torch.Tensor) -> t.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.patch_embed(x)
         b, num, dim = x.size()
+        setattr(self, '_target', x)
         x = x + self.pos_embed[:, 1:, :]
         x, mask, idx_storage = self.mask(x)
 
@@ -150,7 +151,6 @@ class MAE(nn.Module):
     def forward_decoder(self, x: torch.Tensor, idx_storage: torch.Tensor):
         x = self.decoder_embed(x)
         b, num, dim = x.size()
-        setattr(self, '_target', x)
         # ignore cls token
         mask_tokens = self.mask_token.repeat(b, idx_storage.shape[1] - num + 1, 1)
         x_ = torch.cat((x[:, 1:, :], mask_tokens), dim=1)

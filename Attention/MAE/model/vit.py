@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.nn.init import trunc_normal_
 
-from image_classification.MAE.augment import args_train
+from Attention.MAE.augment import args_train
 
 
 def drop_path(x: torch.Tensor, drop_prob: float = 0., training: bool = False) -> torch.Tensor:

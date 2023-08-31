@@ -10,7 +10,7 @@ class Args(object):
 
     def set_train_args(self):
         self.parser.add_argument('--epoch', type=int, default=0, help='the epoch of current training')
-        self.parser.add_argument('--batch_size', type=int, default=4)
+        self.parser.add_argument('--batch_size', type=int, default=64)
         self.parser.add_argument('--use_gpu', action='store_true')
         self.parser.add_argument('--gpu_id', type=int, default=None)
         self.parser.add_argument('--num_workers', type=int, default=4)

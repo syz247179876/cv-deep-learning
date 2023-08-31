@@ -1,7 +1,7 @@
-FLOWER_IMAGE_DIR = r'C:\Users\24717\Projects\dataset\flower_photos'
+FLOWER_IMAGE_DIR = r'C:\dataset\flower_photos'
 VOC_IMAGE_DIR = r'C:\Users\24717\Projects\dataset\pascal voc2012\VOCdevkit\VOC2012\JPEGImages'
-# COCO_IMAGE_DIR = r'C:\Users\24717\Projects\dataset\coco\train2017\train2017'
-COCO_IMAGE_DIR = r'C:\Users\24717\Projects\dataset\coco\test2017\test2017'
+COCO_IMAGE_DIR = r'C:\Users\24717\Projects\dataset\coco\train2017\train2017'
+# COCO_IMAGE_DIR = r'C:\Users\24717\Projects\dataset\coco\test2017\test2017'
 
 COCO_MEAN = [0.471, 0.448, 0.408]
 COCO_STD = [0.234, 0.239, 0.242]

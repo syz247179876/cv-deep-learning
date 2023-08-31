@@ -59,7 +59,8 @@ class PatchMerging(nn.Module):
     ):
         super(PatchMerging, self).__init__()
         self.input_shape = input_shape
-        self.proj = nn.Linear(dim * 4, dim * 2)
+        # self.reduction = nn.Linear(dim * 4, dim * 2, bias=False)
+        self.reduction = nn.Conv2d(dim * 4, dim * 2)
         self.norm = norm_layer(dim * 4)
 
     def forward(self, x: torch.Tensor):
@@ -79,7 +80,7 @@ class PatchMerging(nn.Module):
         x = torch.cat((x0, x1, x2, x3), dim=-1)
         x = x.view(b, -1, dim * 4)
         x = self.norm(x)
-        x = self.proj(x)
+        x = self.reduction(x)
         return x
 
 
