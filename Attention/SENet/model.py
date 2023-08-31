@@ -1,0 +1,104 @@
+import torch
+import torch.nn as nn
+import typing as t
+
+
+class SEBlock(nn.Module):
+    """
+    SE Block: A Channel Based Attention Mechanism.
+
+        Traditional convolution in computation, it blends the feature relationships of the channel
+    with the spatial relationships learned from the convolutional kernel, because a conv sum the
+    operation results of each channel, so, using SE Block to pay attention to more important channels,
+    suppress useless channels.
+
+    SE Block Contains two three parts:
+    1.Squeeze: Global Information Embedding.
+        Aggregate (H, W, C) dim to (1, 1, C) dim, use GAP to generate aggregation channel,
+    encode the entire spatial feature on a channel to a global feature.
+
+    2.Excitation: Adaptive Recalibration.
+        It aims to fully capture channel-wise dependencies and improve the representation of image,
+    by using two liner layer, one activation inside and sigmoid or softmax to normalize,
+    to produce channel-wise weights.
+        Maybe like using liner layer to extract feature map to classify, but this applies at channel
+    level and pay attention to channels with a large number of information.
+
+    3.Scale: feature recalibration.
+        Multiply the learned weight with the original features to obtain new features.
+        SE Block can be added to Residual Block.
+    """
+
+    def __init__(self, channel: int, reduction: int):
+        super(SEBlock, self).__init__()
+        # part 1:(H, W, C) -> (1, 1, C)
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        # part 2, compute weight of each channel
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=False),
+            nn.Sigmoid(),  # nn.Softmax is OK here?
+        )
+
+    def forward(self, x: torch.Tensor):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+
+
+class SEResBottleNeck(nn.Module):
+    """
+    the bottleneck based on SE Block and Residual Block
+    """
+    expansion = 4
+    def __init__(
+            self,
+            in_channels: int,
+            out_channels: int,
+            stride: int = 1,
+            down_sample: t.Optional[nn.Module] = None,
+            reduction: int = 16,
+    ):
+        super(SEResBottleNeck, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu1 = nn.LeakyReLU(0.1, inplace=True)
+
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, stride=stride, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.relu2 = nn.LeakyReLU(0.1, inplace=True)
+
+        self.conv3 = nn.Conv2d(out_channels, out_channels * 4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(out_channels * 4)
+        self.relu3 = nn.LeakyReLU(0.1, inplace=True)
+
+        self.se = SEBlock(out_channels * 4, reduction)
+        self.down_sample = down_sample
+
+    def forward(self, x: torch.Tensor):
+        residual = x
+        y = self.conv1(x)
+        y = self.bn1(y)
+        y = self.relu1(y)
+
+        y = self.conv2(y)
+        y = self.bn2(y)
+        y = self.relu2(y)
+
+        y = self.conv3(y)
+        y = self.bn3(y)
+        y = self.se(y)
+
+        if self.down_sample is not None:
+            residual = self.down_sample(y)
+        y += residual
+        return self.relu3(y)
+
+
+if __name__ == '__main__':
+    x_ = torch.randn(3, 480, 224, 224)
+    bottle = SEResBottleNeck(in_channels=x_.shape[1], out_channels=x_.shape[1] // SEResBottleNeck.expansion)
+    res = bottle(x_)
+    print(res.size(), res)
