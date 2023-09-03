@@ -1,0 +1,1 @@
+Epoch: 0/101 	Iter: 0/44	cur_loss: 2.162019 	avg_loss: 2.162019

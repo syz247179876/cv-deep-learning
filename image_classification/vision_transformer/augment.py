@@ -17,7 +17,7 @@ class Args(object):
         self.parser.add_argument('--num_workers', type=int, default=4)
         self.parser.add_argument('--base_dir',
                                  type=str,
-                                 default=r'C:\Users\24717\Projects\dataset',
+                                 default=r'D:\projects\dataset',
                                  help='the base dir of dataset'
                                  )
         self.parser.add_argument('--shuffle', action='store_true', default=True)
@@ -50,7 +50,7 @@ class Args(object):
         self.parser.add_argument('--gpu_id', type=int, default=None)
         self.parser.add_argument('--base_dir',
                                  type=str,
-                                 default=r'',
+                                 default=r'D:\projects\dataset',
                                  help='the base dir of dataset'
                                  )
         self.parser.add_argument('--shuffle', action='store_true', default=True)

@@ -1,4 +1,5 @@
 import contextlib
+import os.path
 from collections import OrderedDict
 import yaml
 import torch
@@ -106,7 +107,7 @@ class Attention(nn.Module):
         qkv = self.qkv(x)
         qkv = qkv.reshape(batch, num, 3, self.num_heads, channel // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[1]
-         # 将Q中每一个vector与K中每一个vector计算attention, 进行sca5le缩放, 避免点积带来的方差影响，
+        # 将Q中每一个vector与K中每一个vector计算attention, 进行sca5le缩放, 避免点积带来的方差影响，
         # 得到a(i,j), 然后经过softmax得到key的权重
         attn = q @ k.transpose(-2, -1) * self.scale
         attn = attn.softmax(dim=-1)
@@ -290,7 +291,7 @@ class ModelFactory(object):
 
     def __init__(self, model_name: str = 'base'):
         assert model_name in ('base', 'huge', 'large'), 'model name should be "base", "huge", "large"'
-        with open(rf'vit-{model_name}.yaml', 'r') as m_f:
+        with open(rf'{os.path.dirname(__file__)}\vit-{model_name}.yaml', 'r') as m_f:
             config = yaml.safe_load(m_f)
         with contextlib.suppress(NameError):
             for key, value in config.items():
