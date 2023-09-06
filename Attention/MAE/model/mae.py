@@ -5,11 +5,14 @@ import torch.nn as nn
 import typing as t
 
 import yaml
-
+import os
 from Attention.MAE.augment import args_train
 from Attention.MAE.util import init_weights
 from Attention.MAE.utils.pos_embed import get_2d_sincos_pos_embed
-from .vit import PatchEmbed, TransformerBlock
+
+from Attention.MAE.model.vit import PatchEmbed, TransformerBlock
+
+ROOT = os.path.dirname(os.path.dirname(__file__))
 
 
 class Mask(object):
@@ -58,7 +61,7 @@ class MAE(nn.Module):
             patch_size: int = 16,
             in_chans: int = 3,
             embed_dim: int = 1024,
-            decoder_embed_dim: int = 512,
+            decoder_dim: int = 512,
             num_heads: int = 16,
             decoder_num_heads: int = 16,
             block_depth: int = 24,
@@ -78,8 +81,11 @@ class MAE(nn.Module):
     ):
         super(MAE, self).__init__()
         self.opts = args_train.opts
-        self.patch_embed = embed_layer or PatchEmbed(img_size, (patch_size, patch_size), in_chans, mode=mode)
+        self.patch_size = (patch_size, patch_size)
+        self.patch_embed = embed_layer or PatchEmbed(img_size, (patch_size, patch_size),
+                                                     in_chans, embed_dim=embed_dim, mode=mode)
         num_patches = self.patch_embed.num_patches
+        self.patches_tuple = self.patch_embed.patches_tuple
         self.mask = mask or Mask(mask_ratio)
         # Encoder
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
@@ -96,18 +102,18 @@ class MAE(nn.Module):
         self.norm = norm_layer(embed_dim)
 
         # Decoder
-        self.decoder_embed = nn.Linear(embed_dim, decoder_embed_dim, bias=True)
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
-        self.decoder_pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, decoder_embed_dim), requires_grad=False)
+        self.decoder_embed = nn.Linear(embed_dim, decoder_dim, bias=True)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_dim))
+        self.decoder_pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, decoder_dim), requires_grad=False)
         self.decoder_blocks = nn.Sequential(*[
-            TransformerBlock(dim=decoder_embed_dim, num_heads=decoder_num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale,
+            TransformerBlock(dim=decoder_dim, num_heads=decoder_num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale,
                              attn_drop_ratio=attn_drop_ratio, proj_drop_ratio=proj_drop_ratio,
                              drop_path_ratio=0.0, mlp_ratio=mlp_ratio, act_layer=act_layer,
                              norm_layer=norm_layer)
             for _ in range(decoder_block_depth)
         ])
-        self.decoder_norm = norm_layer(decoder_embed_dim)
-        self.decoder_head = nn.Linear(decoder_embed_dim, patch_size ** 2 * in_chans, bias=True)
+        self.decoder_norm = norm_layer(decoder_dim)
+        self.decoder_pred = nn.Linear(decoder_dim, patch_size ** 2 * in_chans, bias=True)
 
         self.initialize_weights()
 
@@ -161,7 +167,7 @@ class MAE(nn.Module):
         x = x + self.decoder_pos_embed
         x = self.decoder_blocks(x)
         x = self.decoder_norm(x)
-        x = self.decoder_head(x)
+        x = self.decoder_pred(x)
 
         # remove cls token
         x = x[:, 1:, :]
@@ -185,7 +191,7 @@ def model_factory(
     if load_dict:
         return MAE(**load_dict)
     elif load_file:
-        with open(rf'mae-{model_name}.yaml', 'r') as m_f:
+        with open(rf'{ROOT}\mae-{model_name}.yaml', 'r') as m_f:
             config = yaml.safe_load(m_f)
         with contextlib.suppress(NameError):
             for key, value in config.items():
@@ -198,9 +204,19 @@ def model_factory(
     else:
         raise ValueError('can not build model')
 
-# if __name__ == '__main__':
-#     mask_ = Mask(0.75)
-#     x_ = torch.randn(3, 100, 200)
-#     # mask_, unmask_ = mask(x)
-#     x_masked, mask_, ids_restore = mask(x_)
-#     print(x_masked, mask_, ids_restore)
+
+if __name__ == '__main__':
+    _x = torch.randn((2, 3, 224, 224))
+    _x = _x.to(0)
+    # f = PatchEmbed(mode='split')
+    # res = f(_x)
+    # print(res)
+    # f2 = PatchEmbed(mode='split')
+    # res2 = f2(_x)
+    # print(res2)
+    model = model_factory(model_name='large', load_file=True)
+    model = model.to(0)
+    # pred, label = model(_x)
+    # print(pred.size(), label.size(), nn.MSELoss(reduction='mean')(pred, label))
+    ss = model.state_dict()
+    s = 8

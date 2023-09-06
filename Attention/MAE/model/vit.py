@@ -66,11 +66,11 @@ class PatchEmbed(nn.Module):
         self.patch_size = patch_size
         self.num_patches = (image_size[0] // patch_size[0]) * (image_size[1] // patch_size[1])
         if mode == 'conv':
-            self.conv_embed = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
+            self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
         self.patches_tuple = (image_size[0] // patch_size[0], image_size[1] // patch_size[1])
 
     def forward_conv(self, x: torch.Tensor) -> torch.Tensor:
-        return self.conv_embed(x).flatten(2, -1).transpose(1, 2)
+        return self.proj(x).flatten(2, -1).transpose(1, 2)
 
     def forward_split(self, x: torch.Tensor) -> torch.Tensor:
         b, c, h, w = x.size()
@@ -171,13 +171,13 @@ class TransformerBlock(nn.Module):
     ):
         super(TransformerBlock, self).__init__()
         self.norm1 = norm_layer(dim)
-        self.multi_attn = Attention(dim, num_heads, qkv_bias, qk_scale, attn_drop_ratio, proj_drop_ratio)
+        self.attn = Attention(dim, num_heads, qkv_bias, qk_scale, attn_drop_ratio, proj_drop_ratio)
         self.drop_path = DropPath(drop_path_ratio) if drop_path_ratio > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
         self.mlp = MLP(dim, int(dim * mlp_ratio), dim, act_layer, proj_drop_ratio)
 
     def forward(self, x: torch.Tensor):
-        x = x + self.drop_path(self.multi_attn(self.norm1(x)))
+        x = x + self.drop_path(self.attn(self.norm1(x)))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 

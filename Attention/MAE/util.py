@@ -53,10 +53,11 @@ def mae_collate(batch: t.Iterable[t.Tuple]) -> t.Tuple[torch.Tensor, t.List]:
 
 def reconstruction(
         pred: torch.Tensor,
-        target: torch.Tensor,
+        targets: torch.Tensor,
+        mask_targets: torch.Tensor,
         mean: t.List,
         std: t.List,
-) -> t.Tuple[torch.Tensor, torch.Tensor]:
+) -> t.Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     b, _, _ = pred.size()
     # (b, mask_num, decoder_dim) -> (b, c, h, w), create a new tensor object
     recons_img = pred.view(
@@ -64,15 +65,17 @@ def reconstruction(
         16, 16, 3
     ).permute(0, 5, 1, 3, 2, 4).reshape(b, 3, 224, 224)
 
-    patches_img = target.view(
+    mask_targets_img = mask_targets.view(
         b, 14, 14,
         16, 16, 3
     ).permute(0, 5, 1, 3, 2, 4).reshape(b, 3, 224, 224)
+
     # recons_img = (recons_img * 255.).type(torch.uint8)
     # patches_img = (patches_img * 255.).type(torch.uint8)
     recons_img = z_score_denormalizer(recons_img, mean, std)
-    patches_img = z_score_denormalizer(patches_img, mean, std)
-    return recons_img, patches_img
+    origin_img = z_score_denormalizer(targets, mean, std)
+    mask_targets_img = z_score_denormalizer(mask_targets_img, mean, std)
+    return recons_img, origin_img, mask_targets_img
 
 
 def z_score_denormalizer(

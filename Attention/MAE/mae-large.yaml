@@ -10,15 +10,15 @@ patch_size: 16
 # the channel of each picture
 in_chans: 3
 # the size of encoder patch, 16x16x3
-embed_dim: 768
+embed_dim: 1024
 # the size of decoder patch, 16x16x3
 decoder_dim: 512
 # number of multiple heads in encoder
-num_heads: 12
+num_heads: 16
 # number of multiple heads in decoder
 decoder_num_heads: 16
 # the num of transformer encoder block
-block_depth: 12
+block_depth: 24
 # the num of transformer decoder block
 decoder_block_depth: 8
 
@@ -43,4 +43,4 @@ act_layer: "nn.GELU"
 norm_layer: "nn.LayerNorm"
 
 # strategies for generating embedded patches, there are two types implementations, 'split' and 'conv'
-mode: 'split'
+mode: 'conv'

@@ -67,11 +67,11 @@ class PatchEmbed(nn.Module):
         self.mode = mode
         self.patch_size = patch_size
         self.num_patches = (image_size[0] // patch_size[0]) * (image_size[1] // patch_size[1])
-        self.conv_embed = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
+        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
         self.patches_tuple = (image_size[0] // patch_size[0], image_size[1] // patch_size[1])
 
     def forward_conv(self, x: torch.Tensor) -> torch.Tensor:
-        return self.conv_embed(x).flatten(2, -1).transpose(1, 2)
+        return self.proj(x).flatten(2, -1).transpose(1, 2)
 
     def forward_split(self, x: torch.Tensor) -> torch.Tensor:
         b, c, h, w = x.size()
@@ -316,12 +316,13 @@ class MAE(nn.Module):
         num_patches = int(img_size[0] * img_size[1] / (patch_size * patch_size))
         num_masked = int(num_patches * self.opts.mask_ratio)
         self.mask = mask or Mask(self.opts.mask_ratio, num_masked, num_patches)
-        self.patch_embed = embed_layer or PatchEmbed(img_size, (patch_size, patch_size), in_chans, mode=mode)
+        self.patch_embed = embed_layer or PatchEmbed(img_size, (patch_size, patch_size),
+                                                     in_chans, embed_dim=embed_dim, mode=mode)
 
-        self.encoder_block = encoder_block or TransformerBlock(embed_dim, num_heads, qkv_bias, qk_scale,
-                                                               attn_drop_ratio,
-                                                               proj_drop_ratio, drop_path_ratio, mlp_ratio, act_layer,
-                                                               norm_layer)
+        # self.encoder_block = encoder_block or TransformerBlock(embed_dim, num_heads, qkv_bias, qk_scale,
+        #                                                        attn_drop_ratio,
+        #                                                        proj_drop_ratio, drop_path_ratio, mlp_ratio, act_layer,
+        #                                                        norm_layer)
         self.cls_tokens = 1
         self.cls_token = nn.Parameter(torch.zeros(1, self.cls_tokens, embed_dim, device=self.opts.gpu_id))
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + self.cls_tokens, embed_dim,
@@ -348,14 +349,14 @@ class MAE(nn.Module):
         # note: the type of mask_tokens should be int64, as needed to embed by nn.Embedding
         self.mask_tokens = nn.Parameter(torch.zeros(1, 1, decoder_dim, device=self.opts.gpu_id))
         # d_pos_embed = nn.Embedding(num_patches, decoder_dim)
-        self.d_pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, decoder_dim,
-                                                    device=self.opts.gpu_id), requires_grad=False)
+        self.decoder_pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, decoder_dim,
+                                                          device=self.opts.gpu_id), requires_grad=False)
         # if self.opts.use_gpu:
         #     self.mask_tokens = self.mask_tokens.to(self.opts.gpu_id)
-        self.decoder = decoder or Decoder(self.opts, embed_dim, decoder_dim, self.mask_tokens, self.d_pos_embed,
+        self.decoder = decoder or Decoder(self.opts, embed_dim, decoder_dim, self.mask_tokens, self.decoder_pos_embed,
                                           self.mask, decoder_num_heads, decoder_block_depth, mlp_ratio,
                                           act_layer, norm_layer)
-        self.decoder_head = nn.Linear(decoder_dim, patch_size * patch_size * in_chans, bias=True)
+        self.decoder_pred = nn.Linear(decoder_dim, patch_size * patch_size * in_chans, bias=True)
 
     def forward_encoder(self, x: torch.Tensor) -> t.Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -381,7 +382,7 @@ class MAE(nn.Module):
         # (b, num, dim)
         x = self.decoder(x)
         # predictor head
-        x = self.decoder_head(x)
+        x = self.decoder_pred(x)
         # remove cls token
         x = x[:, 1:, :]
         # retrieve masked tokens after decoder, (b, mask_num, decoder_dim)
@@ -431,7 +432,7 @@ class ModelFactory(object):
     """
 
     def __init__(self, model_name: str = 'base'):
-        assert model_name in ('base',), 'model name should be "base"'
+        assert model_name in ('base', 'large', 'huge'), 'model name should be "base"'
         with open(rf'mae-{model_name}.yaml', 'r') as m_f:
             config = yaml.safe_load(m_f)
         with contextlib.suppress(NameError):
@@ -453,7 +454,9 @@ if __name__ == '__main__':
     # f2 = PatchEmbed(mode='split')
     # res2 = f2(_x)
     # print(res2)
-    model = ModelFactory(model_name='base').model
+    model = ModelFactory(model_name='large').model
     model = model.to(0)
     pred, label = model(_x)
     print(pred.size(), label.size(), nn.MSELoss(reduction='mean')(pred, label))
+    ss = model.state_dict()
+    s = 8
