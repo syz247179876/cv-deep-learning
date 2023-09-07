@@ -20,8 +20,7 @@ class MAETest(object):
     def main(
             self
     ):
-        test_dataset = MAEDataset(mode='test', img_augmentation=ImageAugmentation)
-        print(self.opts)
+        test_dataset = MAEDataset(opts=self.opts, mode='custom', img_augmentation=ImageAugmentation)
         test_loader = DataLoader(
             test_dataset,
             batch_size=self.opts.batch_size,
