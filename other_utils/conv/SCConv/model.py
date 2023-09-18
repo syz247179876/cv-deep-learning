@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torchsummary import summary
 
 
 class SRU(nn.Module):
@@ -140,7 +141,8 @@ class SCConv(nn.Module):
 
 
 if __name__ == '__main__':
-    _x = torch.rand((3, 64, 20, 20))
-    s = SCConv(64)
-    res = s(_x)
-    print(res)
+    _x = torch.rand((3, 128, 20, 20)).to(0)
+    s = SCConv(128).to(0)
+    # res = s(_x)
+    summary(s, (128, 224, 224))
+    # print(res)
