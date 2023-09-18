@@ -48,6 +48,7 @@ class BasicBlock(nn.Module):
             down_sample: t.Optional[nn.Module] = None,
             norm_layer: t.Optional[nn.Module] = None,
             act_layer: t.Optional[nn.Module] = None,
+            base_width=64,
     ):
         super(BasicBlock, self).__init__()
         if norm_layer is None:
@@ -85,6 +86,7 @@ class BottleNeck(nn.Module):
         width_per_group: the number of Convolution kernel in each group
     """
     expansion = 2
+    _conv = Conv
 
     def __init__(
             self,
@@ -96,6 +98,7 @@ class BottleNeck(nn.Module):
             down_sample: t.Optional[nn.Module] = None,
             norm_layer: t.Optional[nn.Module] = None,
             act_layer: t.Optional[nn.Module] = None,
+            base_width: int = 64,
     ):
         super(BottleNeck, self).__init__()
         if norm_layer is None:
@@ -103,15 +106,19 @@ class BottleNeck(nn.Module):
         if act_layer is None:
             act_layer = nn.ReLU
 
-        width = int(out_chans * (width_per_group / 128.)) * groups
-        self.conv1 = Conv(in_chans, width, 1, 1, 1, norm_layer, act_layer)
+        width = int(out_chans * (width_per_group / base_width)) * groups
+        self.conv1 = self._conv(in_chans, width, 1, 1, 1, norm_layer, act_layer)
         # when stride > 1, need to down sample x in forward, use conv replace pooling
-        self.conv2 = Conv(width, width, 3, stride, groups, norm_layer, act_layer)
+        self.conv2 = self._conv(width, width, 3, stride, groups, norm_layer, act_layer)
         self.conv3 = nn.Conv2d(width, out_chans * self.expansion, kernel_size=1, bias=False)
         self.bn = norm_layer(out_chans * self.expansion)
         self.act = act_layer(inplace=True)
         self.down_sample = down_sample
         self.stride = stride
+
+    @classmethod
+    def set_conv(cls, conv: nn.Module):
+        cls._conv = conv
 
     def forward(self, x: torch.Tensor):
         identity = x
@@ -152,12 +159,14 @@ class ResNeXt(nn.Module):
             self,
             block: t.Type[t.Union[BasicBlock, BottleNeck]],
             layers: t.List[int],
+            layers_output: t.List[int],
             num_classes: int = 1000,
             groups: int = 1,
             width_per_group: int = 64,
             norm_layer: t.Optional[nn.Module] = None,
             act_layer: t.Optional[nn.Module] = None,
             classifier: bool = True,  # whether include GAP and fc layer to classify
+            base_width: int = 64,
     ):
         super(ResNeXt, self).__init__()
         if norm_layer is None:
@@ -177,20 +186,20 @@ class ResNeXt(nn.Module):
 
         # stage-conv2, 3x3 kernel, max pool, s = 2, bottleneck
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 128, layers[0])
+        self.layer1 = self._make_layer(block, layers_output[0], layers[0], base_width=base_width)
 
         # stage-conv3
-        self.layer2 = self._make_layer(block, 256, layers[1], 2)
+        self.layer2 = self._make_layer(block, layers_output[1], layers[1], 2, base_width=base_width)
 
         # stage-conv4
-        self.layer3 = self._make_layer(block, 512, layers[2], 2)
+        self.layer3 = self._make_layer(block, layers_output[2], layers[2], 2, base_width=base_width)
 
         # stage-conv5
-        self.layer4 = self._make_layer(block, 1024, layers[3], 2)
+        self.layer4 = self._make_layer(block, layers_output[3], layers[3], 2, base_width=base_width)
         self.classifier = classifier
         if classifier:
             self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-            self.fc = nn.Linear(1024 * block.expansion, num_classes)
+            self.fc = nn.Linear(layers_output[-1] * block.expansion, num_classes)
 
         self.apply(self._init_weights)
 
@@ -209,6 +218,7 @@ class ResNeXt(nn.Module):
             out_chans: int,
             blocks: int,
             stride: int = 1,
+            base_width=128,
     ):
         down_sample = None
         # stride != 1 <==> in stage conv2~5, self.in_chans != out_chans * block.expansion <==> in stage conv1
@@ -220,7 +230,7 @@ class ResNeXt(nn.Module):
         # each stage, the first block use to down sample, make sure that in_chans is equal to out_chans
         layers = [block(
             self.in_chans, out_chans, stride, self.groups, self.width_per_group, down_sample, self.norm_layer,
-            self.act_layer
+            self.act_layer, base_width
         )]
         self.in_chans = out_chans * block.expansion
         for _ in range(1, blocks):
@@ -232,7 +242,8 @@ class ResNeXt(nn.Module):
                     self.groups,
                     self.width_per_group,
                     norm_layer=self.norm_layer,
-                    act_layer=self.act_layer
+                    act_layer=self.act_layer,
+                    base_width=base_width
                 )
             )
 
@@ -265,6 +276,42 @@ class ResNeXt(nn.Module):
         return x
 
 
+def resnet50(num_classes: int = 1000, classifier: bool = True):
+    BottleNeck.expansion = 4
+    return ResNeXt(
+        block=BottleNeck,
+        layers=[3, 4, 6, 3],
+        layers_output=[64, 128, 256, 512],
+        num_classes=num_classes,
+        classifier=classifier,
+        base_width=64,
+    )
+
+
+def resnet101(num_classes: int = 1000, classifier: bool = True):
+    BottleNeck.expansion = 4
+    return ResNeXt(
+        block=BottleNeck,
+        layers=[3, 4, 23, 3],
+        layers_output=[64, 128, 256, 512],
+        num_classes=num_classes,
+        classifier=classifier,
+        base_width=64,
+    )
+
+
+def resnet152(num_classes: int = 1000, classifier: bool = True):
+    BottleNeck.expansion = 4
+    return ResNeXt(
+        block=BottleNeck,
+        layers=[3, 8, 36, 3],
+        layers_output=[64, 128, 256, 512],
+        num_classes=num_classes,
+        classifier=classifier,
+        base_width=64,
+    )
+
+
 def ResNeXt50_32x4d(num_classes: int = 1000, classifier: bool = True):
     """
     ResNeXt-50 32 groups and 4 kernel per group
@@ -273,10 +320,12 @@ def ResNeXt50_32x4d(num_classes: int = 1000, classifier: bool = True):
     return ResNeXt(
         block=BottleNeck,
         layers=[3, 4, 6, 3],
+        layers_output=[128, 256, 512, 1024],
         num_classes=num_classes,
         groups=32,
         width_per_group=4,
         classifier=classifier,
+        base_width=128,
     )
 
 
@@ -288,10 +337,12 @@ def ResNeXt101_32x4d(num_classes: int = 1000, classifier: bool = True):
     return ResNeXt(
         block=BottleNeck,
         layers=[3, 4, 23, 3],
+        layers_output=[128, 256, 512, 1024],
         num_classes=num_classes,
         groups=32,
         width_per_group=4,
         classifier=classifier,
+        base_width=128,
     )
 
 
@@ -303,16 +354,18 @@ def ResNeXt152_32x4d(num_classes: int = 1000, classifier: bool = True):
     return ResNeXt(
         block=BottleNeck,
         layers=[3, 8, 36, 3],
+        layers_output=[128, 256, 512, 1024],
         num_classes=num_classes,
         groups=32,
         width_per_group=4,
         classifier=classifier,
+        base_width=128,
     )
 
 
 if __name__ == '__main__':
     _x = torch.randn((3, 3, 224, 224)).to(0)
-    resnext50 = ResNeXt50_32x4d(num_classes=5, classifier=True).to(0)
+    resnext50 = ResNeXt50_32x4d(num_classes=1000, classifier=True).to(0)
     res = resnext50(_x)
     # has fewer params
     summary(resnext50, (3, 224, 224), batch_size=4)

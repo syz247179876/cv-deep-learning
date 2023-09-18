@@ -84,13 +84,14 @@ class CRU(nn.Module):
             alpha: float = 0.5,
             squeeze_ratio: int = 2,
             groups: int = 2,
+            stride: int = 1,
     ):
         super(CRU, self).__init__()
         self.upper_channel = int(channels * alpha)
         self.low_channel = channels - self.upper_channel
         s_up_c, s_low_c = self.upper_channel // squeeze_ratio, self.low_channel // squeeze_ratio
-        self.squeeze_up = nn.Conv2d(self.upper_channel, s_up_c, 1, bias=False)
-        self.squeeze_low = nn.Conv2d(self.low_channel, s_low_c, 1, bias=False)
+        self.squeeze_up = nn.Conv2d(self.upper_channel, s_up_c, 1, stride=stride, bias=False)
+        self.squeeze_low = nn.Conv2d(self.low_channel, s_low_c, 1, stride=stride, bias=False)
 
         # up -> GWC + PWC
         self.gwc = nn.Conv2d(s_up_c, channels, 3, stride=1, padding=1, groups=groups)
@@ -112,6 +113,7 @@ class CRU(nn.Module):
         y2 = torch.cat((low, self.pwc2(low)), dim=1)
 
         out = torch.cat((y1, y2), dim=1)
+        # enhance the feature maps that include large amount of information
         out_s = self.softmax(self.gap(out))
         out = out * out_s
         out1, out2 = torch.split(out, out.size(1) // 2, dim=1)
@@ -129,10 +131,11 @@ class SCConv(nn.Module):
             alpha: float = 0.5,
             squeeze_ratio: int = 2,
             groups: int = 2,
+            stride: int = 1,
     ):
         super(SCConv, self).__init__()
         self.sru = SRU(channels, group_num, gate_threshold)
-        self.cru = CRU(channels, alpha, squeeze_ratio, groups)
+        self.cru = CRU(channels, alpha, squeeze_ratio, groups, stride)
 
     def forward(self, x: torch.Tensor):
         x = self.sru(x)
@@ -144,5 +147,5 @@ if __name__ == '__main__':
     _x = torch.rand((3, 128, 20, 20)).to(0)
     s = SCConv(128).to(0)
     # res = s(_x)
-    summary(s, (128, 224, 224))
+    summary(c, (128, 224, 224))
     # print(res)
