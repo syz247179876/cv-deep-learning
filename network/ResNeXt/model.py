@@ -117,7 +117,7 @@ class BottleNeck(nn.Module):
         self.stride = stride
 
     @classmethod
-    def set_conv(cls, conv: nn.Module):
+    def set_conv(cls, conv: t.Type[nn.Module]):
         cls._conv = conv
 
     def forward(self, x: torch.Tensor):
