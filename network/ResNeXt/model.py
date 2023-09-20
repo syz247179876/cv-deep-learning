@@ -157,7 +157,7 @@ class ResNeXt(nn.Module):
 
     def __init__(
             self,
-            block: t.Type[t.Union[BasicBlock, BottleNeck]],
+            block: t.Type[t.Union[BasicBlock, BottleNeck, t.Callable]],
             layers: t.List[int],
             layers_output: t.List[int],
             num_classes: int = 1000,
@@ -167,6 +167,7 @@ class ResNeXt(nn.Module):
             act_layer: t.Optional[nn.Module] = None,
             classifier: bool = True,  # whether include GAP and fc layer to classify
             base_width: int = 64,
+            **kwargs
     ):
         super(ResNeXt, self).__init__()
         if norm_layer is None:
@@ -186,16 +187,16 @@ class ResNeXt(nn.Module):
 
         # stage-conv2, 3x3 kernel, max pool, s = 2, bottleneck
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, layers_output[0], layers[0], base_width=base_width)
+        self.layer1 = self._make_layer(block, layers_output[0], layers[0], base_width=base_width, **kwargs)
 
         # stage-conv3
-        self.layer2 = self._make_layer(block, layers_output[1], layers[1], 2, base_width=base_width)
+        self.layer2 = self._make_layer(block, layers_output[1], layers[1], 2, base_width=base_width, **kwargs)
 
         # stage-conv4
-        self.layer3 = self._make_layer(block, layers_output[2], layers[2], 2, base_width=base_width)
+        self.layer3 = self._make_layer(block, layers_output[2], layers[2], 2, base_width=base_width, **kwargs)
 
         # stage-conv5
-        self.layer4 = self._make_layer(block, layers_output[3], layers[3], 2, base_width=base_width)
+        self.layer4 = self._make_layer(block, layers_output[3], layers[3], 2, base_width=base_width, **kwargs)
         self.classifier = classifier
         if classifier:
             self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
@@ -219,6 +220,7 @@ class ResNeXt(nn.Module):
             blocks: int,
             stride: int = 1,
             base_width=128,
+            **kwargs
     ):
         down_sample = None
         # stride != 1 <==> in stage conv2~5, self.in_chans != out_chans * block.expansion <==> in stage conv1
@@ -230,7 +232,7 @@ class ResNeXt(nn.Module):
         # each stage, the first block use to down sample, make sure that in_chans is equal to out_chans
         layers = [block(
             self.in_chans, out_chans, stride, self.groups, self.width_per_group, down_sample, self.norm_layer,
-            self.act_layer, base_width
+            self.act_layer, base_width=base_width, **kwargs
         )]
         self.in_chans = out_chans * block.expansion
         for _ in range(1, blocks):
@@ -243,7 +245,8 @@ class ResNeXt(nn.Module):
                     self.width_per_group,
                     norm_layer=self.norm_layer,
                     act_layer=self.act_layer,
-                    base_width=base_width
+                    base_width=base_width,
+                    **kwargs
                 )
             )
 

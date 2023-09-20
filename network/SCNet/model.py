@@ -125,7 +125,6 @@ def ResNext_152_SC_32x4d(num_classes: int = 1000, classifier: bool = True):
         base_width=128,
     )
 
-
 if __name__ == '__main__':
     _x = torch.randn((3, 3, 224, 224)).to(0)
     resnext50 = resnet_50_sc(num_classes=5, classifier=True).to(0)

@@ -147,5 +147,5 @@ if __name__ == '__main__':
     _x = torch.rand((3, 128, 20, 20)).to(0)
     s = SCConv(128).to(0)
     # res = s(_x)
-    summary(c, (128, 224, 224))
+    summary(s, (128, 224, 224))
     # print(res)
