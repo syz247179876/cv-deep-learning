@@ -39,6 +39,7 @@ class GhostBottleneck(nn.Module):
                                norm_layer=norm_layer, act_layer=act_layer)
         self.down_sample = down_sample
         self.stride = stride
+        self.bn = norm_layer(out_chans * self.expansion)
         self.act = act_layer(inplace=True)
 
     def forward(self, x: torch.Tensor):
@@ -46,6 +47,7 @@ class GhostBottleneck(nn.Module):
         y = self.conv1(x)
         y = self.conv2(y)
         y = self.conv3(y)
+        y = self.bn(y)
 
         if self.down_sample:
             identity = self.down_sample(identity)
