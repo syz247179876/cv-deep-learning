@@ -43,7 +43,10 @@ class CondConv(nn.Module):
     The idea of ConvConv is first compute the weight coefficients for each expert --- a, then make decision and
     perform linear combination to generate new kernel, in last, make general convolution by using new kernel.
 
-    note: the routing weight is simple-dependency, it means the routing weights are different in different simples.
+    note:
+    1.the routing weight is sample-dependency, it means the routing weights are different in different samples.
+    2.CondConv with the dynamic property through one dimension of kernel space,
+    regarding the number of convolution kernel(experts)
     """
 
     def __init__(
@@ -79,13 +82,13 @@ class CondConv(nn.Module):
 
     def forward(self, x: torch.Tensor, routing_weights: t.Optional[torch.Tensor] = None):
         b, c, h, w = x.size()
-        # compute weights of different experts in different simples
+        # compute weights of different experts in different samples
         if routing_weights is None:
             routing_weights = self.routing(x)
         x = x.view(1, b * c, h, w)
         kernel_weights = self.kernel_weights.view(self.num_experts, -1)
-        # combine weights of all simples, so combined batch_size and out_chans,
-        # then use group conv to split different simples
+        # combine weights of all samples, so combined batch_size and out_chans,
+        # then use group conv to split different samples
         combined_weights = torch.mm(routing_weights, kernel_weights).view(
             -1, self.in_chans // self.groups, self.kernel_size, self.kernel_size)
         if self.bias is not None:
