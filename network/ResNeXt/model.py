@@ -49,6 +49,7 @@ class BasicBlock(nn.Module):
             norm_layer: t.Optional[nn.Module] = None,
             act_layer: t.Optional[nn.Module] = None,
             base_width=64,
+            **kwargs
     ):
         super(BasicBlock, self).__init__()
         if norm_layer is None:
@@ -99,6 +100,7 @@ class BottleNeck(nn.Module):
             norm_layer: t.Optional[nn.Module] = None,
             act_layer: t.Optional[nn.Module] = None,
             base_width: int = 64,
+            **kwargs
     ):
         super(BottleNeck, self).__init__()
         if norm_layer is None:
@@ -157,7 +159,7 @@ class ResNeXt(nn.Module):
 
     def __init__(
             self,
-            block: t.Type[t.Union[BasicBlock, BottleNeck, t.Callable]],
+            block: t.Type[t.Union[BasicBlock, BottleNeck, t.Callable, t.List, t.Tuple]],
             layers: t.List[int],
             layers_output: t.List[int],
             num_classes: int = 1000,
@@ -175,6 +177,9 @@ class ResNeXt(nn.Module):
         if act_layer is None:
             self.act_layer = nn.ReLU
 
+        if not isinstance(block, (t.List, t.Tuple)):
+            block = [block for _ in range(len(layers))]
+
         self.in_chans = 64
         self.groups = groups
         self.width_per_group = width_per_group
@@ -187,20 +192,20 @@ class ResNeXt(nn.Module):
 
         # stage-conv2, 3x3 kernel, max pool, s = 2, bottleneck
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, layers_output[0], layers[0], base_width=base_width, **kwargs)
+        self.layer1 = self._make_layer(block[0], layers_output[0], layers[0], base_width=base_width, **kwargs)
 
         # stage-conv3
-        self.layer2 = self._make_layer(block, layers_output[1], layers[1], 2, base_width=base_width, **kwargs)
+        self.layer2 = self._make_layer(block[1], layers_output[1], layers[1], 2, base_width=base_width, **kwargs)
 
         # stage-conv4
-        self.layer3 = self._make_layer(block, layers_output[2], layers[2], 2, base_width=base_width, **kwargs)
+        self.layer3 = self._make_layer(block[2], layers_output[2], layers[2], 2, base_width=base_width, **kwargs)
 
         # stage-conv5
-        self.layer4 = self._make_layer(block, layers_output[3], layers[3], 2, base_width=base_width, **kwargs)
+        self.layer4 = self._make_layer(block[3], layers_output[3], layers[3], 2, base_width=base_width, **kwargs)
         self.classifier = classifier
         if classifier:
             self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-            self.fc = nn.Linear(layers_output[-1] * block.expansion, num_classes)
+            self.fc = nn.Linear(layers_output[-1] * block[-1].expansion, num_classes)
 
         self.apply(self._init_weights)
 

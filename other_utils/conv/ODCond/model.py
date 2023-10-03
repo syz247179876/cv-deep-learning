@@ -261,7 +261,7 @@ class ODConv(nn.Module):
 
 
 if __name__ == '__main__':
-    model = ODConv(3, 64, 3).to(0)
+    model = ODConv(3, 64, 3, bias=True).to(0)
     _x = torch.rand(2, 3, 224, 224).to(0)
     res = model(_x)
     print(res.size())

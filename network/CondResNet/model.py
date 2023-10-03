@@ -2,8 +2,7 @@ import torch
 import torch.nn as nn
 import typing as t
 from torchsummary import summary
-from torchvision.models import resnet50
-from network.ResNeXt import ResNeXt
+from network.ResNeXt import ResNeXt, BottleNeck
 from other_utils.conv import CondConv, RoutingFunc
 from other_utils.utils import auto_pad
 
@@ -54,6 +53,13 @@ class CondBottleNeck(nn.Module):
     """
     bottleneck based on Residual and CondConv, the first 1x1 conv use ordinary convolution, the second 3x3
     conv and the third 1x1 conv use CondConv which share routing weights
+
+    note:
+    CondConv replaces the convolutional layers in the final several blocks, 3 for the ResNet Backbones, while
+    6 for the MobileNetV2, the number of blocks applied in ResNet in less than MobileNetV2, because MobileNetV2 is
+    more lightweight than ResNet model. As the model becomes larger, replacing CondConv results in more
+    redundant information, and the benefits of improving accuracy are smaller than those of lightweight models.
+    This was validated through experiments in the ODConv paper on ResNet50 and ResNet18 backbones.
     """
 
     expansion = 4
@@ -108,8 +114,9 @@ class CondBottleNeck(nn.Module):
 
 def resnet_50_cond(num_classes: int = 1000, classifier: bool = True, num_experts: int = 8, drop_ratio: float = 0.6):
     CondBottleNeck.expansion = 4
+    BottleNeck.expansion = 4
     return ResNeXt(
-        block=CondBottleNeck,
+        block=[BottleNeck, BottleNeck, BottleNeck, CondBottleNeck],
         layers=[3, 4, 6, 3],
         layers_output=[64, 128, 256, 512],
         num_classes=num_classes,
@@ -122,8 +129,9 @@ def resnet_50_cond(num_classes: int = 1000, classifier: bool = True, num_experts
 
 def resnet_101_cond(num_classes: int = 1000, classifier: bool = True, num_experts: int = 8, drop_ratio: float = 0.6):
     CondBottleNeck.expansion = 4
+    BottleNeck.expansion = 4
     return ResNeXt(
-        block=CondBottleNeck,
+        block=[BottleNeck, BottleNeck, BottleNeck, CondBottleNeck],
         layers=[3, 4, 23, 3],
         layers_output=[64, 128, 256, 512],
         num_classes=num_classes,
