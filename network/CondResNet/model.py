@@ -32,8 +32,8 @@ class Conv(nn.Module):
         if act_layer is None:
             act_layer = nn.ReLU
         if ordinary_conv:
-            self.conv = nn.Conv2d(in_chans, out_chans, kernel_size, stride, padding=auto_pad(kernel_size),
-                                  groups=groups, bias=False)
+            self.conv = nn.Conv2d(in_chans, out_chans, kernel_size, stride, padding=auto_pad(kernel_size, d=dilation),
+                                  dilation=dilation, groups=groups, bias=False)
         else:
             self.conv = CondConv(in_chans, out_chans, kernel_size, stride=stride, num_experts=num_experts,
                                  groups=groups, dilation=dilation, drop_ratio=drop_ratio, bias=False)

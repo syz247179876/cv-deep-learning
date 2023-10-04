@@ -93,7 +93,7 @@ class OmniAttention(nn.Module):
             nn.init.constant_(m.bias, 0)
 
     @staticmethod
-    def ignore() -> float:
+    def ignore(x: torch.Tensor) -> float:
         return 1.0
 
     def get_channel_attention(self, x: torch.Tensor) -> torch.Tensor:
@@ -189,6 +189,7 @@ class ODConv(nn.Module):
 
         self.attention = OmniAttention(in_chans, out_chans, kernel_size, groups, reduction, expert_num,
                                        hidden_chans, norm_layer=norm_layer, act_layer=act_layer)
+        # expert weight and bias
         self.weight = nn.Parameter(torch.Tensor(expert_num, out_chans, in_chans // groups, kernel_size, kernel_size))
 
         if self.bias:
@@ -197,7 +198,7 @@ class ODConv(nn.Module):
             self.bias = None
 
         # ODConv1x + PWC, not need spatial attention and expert attention
-        if self.kernel_size == 1 and self.kernel_num == 1:
+        if self.kernel_size == 1 and self.expert_num == 1:
             self._forward = self._forward_pw1x
         else:
             self._forward = self._forward_omni
