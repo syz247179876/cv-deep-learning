@@ -11,6 +11,10 @@ class Attention(nn.Module):
 
     1.use relative position embedding
     2.use 1x1 convolution kernel to generate q, k, v instead of Linear layer.
+
+    note:
+    The representation quality encoded by relative position encoding is better than that encoded by absolute
+    position encoding
     """
 
     def __init__(
@@ -54,9 +58,10 @@ class Attention(nn.Module):
 
 class BoTBlock(nn.Module):
     """
-    Bottleneck with Transformer(multi-head self-attention)
+    Bottleneck with Transformer(multi-head self-attention).
+    Basic self-attention layer with relative position embedding.
 
-    Basic self-attention layer with relative position embedding
+    note: BoT is suitable for larger scale images
     """
     expansion = 4
 
@@ -107,23 +112,9 @@ class BoTBlock(nn.Module):
         return self.act(y)
 
 
-def resnet50_bot(num_classes: int = 1000, classifier: bool = False, head_num: int = 4, qkv_bias: bool = True):
-    BoTBlock.expansion = 4
-    return ResNeXt(
-        block=[BottleNeck, BottleNeck, BottleNeck, BoTBlock],
-        layers=[3, 4, 6, 3],
-        layers_output=[64, 128, 256, 512],
-        num_classes=num_classes,
-        classifier=classifier,
-        base_width=64,
-        head_num=head_num,
-        qkv_bias=qkv_bias
-    )
-
-
 if __name__ == '__main__':
     _x = torch.rand((4, 3, 224, 224))
-    model = resnet50_bot()
-
-    res = model(_x)
-    print(res.size())
+    # model = resnet50_bot()
+    #
+    # res = model(_x)
+    # print(res.size())

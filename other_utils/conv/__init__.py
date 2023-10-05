@@ -4,6 +4,7 @@ from .SCConv import SCConv
 from .GhostConv import GhostConv
 from .CondConv import CondConv, RoutingFunc
 from .ODConv import ODConv
+from .BoTBlock import BoTBlock
 
 __all__ = [
     'SEBlock',
@@ -13,4 +14,5 @@ __all__ = [
     'CondConv',
     'ODConv',
     'RoutingFunc',
+    'BoTBlock',
 ]
