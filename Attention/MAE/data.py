@@ -67,6 +67,10 @@ class CUSTOMTransform(object):
 
 
 class ImageAugmentation(object):
+    """
+    the role of data augmentation is mainly performed by random masking, because the different for each iteration
+    and so they generate new training samples
+    """
 
     def __call__(
             self,

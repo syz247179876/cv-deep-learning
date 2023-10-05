@@ -30,7 +30,7 @@ class MAETrain(object):
         model_name = f'epoch{epoch}.pth'
         torch.save({
             'last_epoch': epoch,
-            'model_state_dict': model.state_dict(),
+            'model': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
         }, os.path.join(self.opts.checkpoints_dir, model_name))
 
@@ -62,7 +62,7 @@ class MAETrain(object):
                 if self.opts.use_gpu:
                     x = x.to(self.opts.gpu_id)
                 pred, mask, target = model(x)
-                cur_loss = loss_obj(pred, target, mask)
+                cur_loss = loss_obj(pred, x, mask)
                 optimizer.zero_grad()
                 cur_loss.backward()
                 optimizer.step()
@@ -77,7 +77,7 @@ class MAETrain(object):
         if not os.path.exists(self.opts.checkpoints_dir):
             os.mkdir(self.opts.checkpoints_dir)
 
-        train_dataset = MAEDataset(mode='train', img_augmentation=ImageAugmentation)
+        train_dataset = MAEDataset(opts=self.opts, mode='train', img_augmentation=ImageAugmentation)
         train_loader = DataLoader(
             train_dataset,
             batch_size=self.opts.batch_size,
@@ -105,9 +105,10 @@ class MAETrain(object):
         last_epoch = self.opts.start_epoch
         if self.opts.pretrain_file:
             checkpoint = torch.load(self.opts.pretrain_file)
-            model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            last_epoch = checkpoint['last_epoch']
+            model.load_state_dict(checkpoint['model'])
+            if checkpoint.get('optimizer_state_dict'):
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            last_epoch = checkpoint.get('last_epoch', 0)
             print_log(f'Load model file {self.opts.pretrain_file} successfully!')
 
         loss_obj = MAELoss()

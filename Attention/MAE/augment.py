@@ -2,8 +2,10 @@ import argparse
 from pathlib import Path
 
 import torch.cuda
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]
+
 
 class Args(object):
 
@@ -13,16 +15,18 @@ class Args(object):
 
     def set_train_args(self):
         self.parser.add_argument('--epoch', type=int, default=0, help='the epoch of current training')
-        self.parser.add_argument('--batch_size', type=int, default=64)
+        self.parser.add_argument('--batch_size', type=int, default=32)
         self.parser.add_argument('--use_gpu', action='store_true')
         self.parser.add_argument('--gpu_id', type=int, default=None)
         self.parser.add_argument('--num_workers', type=int, default=4)
         self.parser.add_argument('--dataset_name', type=str, default='flower')
+        self.parser.add_argument('--dataset_path', type=str, default=ROOT / 'dataset/images',
+                                 help='custom test dataset path')
         self.parser.add_argument('--shuffle', action='store_true', default=True)
         self.parser.add_argument('--drop_last', action='store_true', default=True)
-        self.parser.add_argument('--pretrain_file', type=str,
+        self.parser.add_argument('--pretrain_file', type=str, default='./checkpoints_dir/mae_visualize_vit_large.pth',
                                  help='store the latest model file')
-        self.parser.add_argument('--print_frequency', type=int, default=60, help='print interval')
+        self.parser.add_argument('--print_frequency', type=int, default=5, help='print interval')
         self.parser.add_argument('--save_frequency', type=int, default=5, help='store model interval')
         self.parser.add_argument('--checkpoints_dir', type=str, default=r'./checkpoints_dir', help='store the model')
         self.parser.add_argument('--lr_base', type=float, default=1.5e-4)
@@ -31,10 +35,10 @@ class Args(object):
         self.parser.add_argument('--weight_decay', type=float, default=0.05, help='regularization coefficient')
         self.parser.add_argument('--start_epoch', type=int, default=0)
         self.parser.add_argument('--end_epoch', type=int, default=101)
-        self.parser.add_argument('--model', type=str, default='base',
+        self.parser.add_argument('--model', type=str, default='large',
                                  help='different kind of models with different parameters,'
                                       'value can be "base", "huge", "large", default is "base"')
-        self.parser.add_argument('--decrease_interval', type=int, default=10)
+        self.parser.add_argument('--decrease_interval', type=int, default=8)
         self.parser.add_argument('--freeze_lagers', action='store_false', default=False,
                                  help='if set true, freeze some layers except head layer')
         self.parser.add_argument('--mask_ratio', type=float, default=0.75,
@@ -50,10 +54,10 @@ class Args(object):
         self.parser.add_argument('--gpu_id', type=int, default=None)
         self.parser.add_argument('--shuffle', action='store_true', default=True)
         self.parser.add_argument('--drop_last', action='store_true', default=False)
-        self.parser.add_argument('--dataset_name', type=str, default='custom')
+        self.parser.add_argument('--dataset_name', type=str, default='flower')
         self.parser.add_argument('--dataset_path', type=str, default=ROOT / 'dataset/images',
                                  help='custom test dataset path')
-        self.parser.add_argument('--pretrain_file', type=str, default=r'./checkpoints_dir/mae_visualize_vit_large.pth',
+        self.parser.add_argument('--pretrain_file', type=str, default=r'./checkpoints_dir/epoch100.pth',
                                  help='store the latest model file')
         self.parser.add_argument('--random_seed', type=int, default=42)
         self.parser.add_argument('--num_workers', type=int, default=1)
