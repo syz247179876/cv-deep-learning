@@ -6,7 +6,6 @@ from torchsummary import summary
 
 from network.ResNeXt import ResNeXt, BottleNeck
 from other_utils.conv import SCConv
-from torchvision.models import resnet50
 
 
 class Conv(nn.Module):

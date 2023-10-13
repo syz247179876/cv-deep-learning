@@ -237,7 +237,7 @@ class ODConv(nn.Module):
         Learn four types of attentions for convolutional kernels along four dimensions of the kernel space
 
         Broadcast point multiplication or matrix multiplication can be used, matrix multiplication reference
-        CondConv implementation
+        CondConv implementation in other_util/conv/CondConv.py
         """
 
         channel_attention, filter_attention, spatial_attention, kernel_attention = self.attention(x)

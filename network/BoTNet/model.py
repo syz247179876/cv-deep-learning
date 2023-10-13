@@ -2,6 +2,7 @@ import torch
 
 from other_utils.conv import BoTBlock
 from network.ResNeXt import ResNeXt, BottleNeck
+from torchsummary import summary
 
 
 def resnet50_bot(num_classes: int = 1000, classifier: bool = False, head_num: int = 4, qkv_bias: bool = True):
@@ -47,8 +48,8 @@ def resnet152_bot(num_classes: int = 1000, classifier: bool = False, head_num: i
 
 
 if __name__ == '__main__':
-    _x = torch.rand((4, 3, 1024, 1024))
-    model = resnet50_bot()
+    _x = torch.rand((4, 3, 1024, 1024)).to(0)
+    model = resnet50_bot().to(0)
 
     res = model(_x)
     print(res.size())

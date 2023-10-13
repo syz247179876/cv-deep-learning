@@ -1,9 +1,11 @@
-from .model import BottleNeck, ResNeXt, resnet50, ResNeXt50_32x4d, ResNeXt101_32x4d, ResNeXt152_32x4d, Conv as BaseConv
+from .model import BottleNeck, ResNeXt, resnet50, resnet101, resnet152, ResNeXt50_32x4d, ResNeXt101_32x4d, ResNeXt152_32x4d, Conv as BaseConv
 
 __all__ = [
     'BottleNeck',
     'ResNeXt',
     'resnet50',
+    'resnet101',
+    'resnet152',
     'ResNeXt50_32x4d',
     'ResNeXt101_32x4d',
     'ResNeXt152_32x4d',

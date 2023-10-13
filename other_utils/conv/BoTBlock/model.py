@@ -32,7 +32,7 @@ class Attention(nn.Module):
         self.scale = qkv_bias or self.head_dim ** -0.5
         self.qkv = nn.Conv2d(dim, dim * 3, kernel_size=1, bias=qkv_bias)
 
-        # relative position embedding Rh and Rw
+        # relative position embedding Rh and Rw, each head is isolated
         self.rw = nn.Parameter(torch.randn((1, head_num, self.head_dim, 1, width)), requires_grad=True)
         self.rh = nn.Parameter(torch.randn((1, head_num, self.head_dim, height, 1)), requires_grad=True)
         self.softmax = nn.Softmax(dim=-1)

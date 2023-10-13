@@ -28,7 +28,7 @@ class SEBlock(nn.Module):
         SE Block can be added to Residual Block.
     """
 
-    def __init__(self, channel: int, reduction: int):
+    def __init__(self, channel: int, reduction: int = 16):
         super(SEBlock, self).__init__()
         # part 1:(H, W, C) -> (1, 1, C)
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
