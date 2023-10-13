@@ -31,7 +31,12 @@ def print_log(txt: str, color: t.Any = Fore.GREEN):
 
 
 def base_collate(batch: t.Iterable[t.Tuple]):
-    pass
+    labels = []
+    images = []
+    for img, label in batch:
+        images.append(img)
+        labels.append(label)
+    return torch.stack(images, dim=0), torch.tensor(labels)
 
 
 def shuffle(arr: t.List[t.Union[t.Tuple, str]], arr_len: int) -> None:
@@ -51,10 +56,9 @@ class Args(object):
         self.opts = None
 
     def set_train_args(self):
-        self.parser.add_argument('--mode', type=str, default='train', help='mode')
         self.parser.add_argument('--start_epoch', type=int, default=0, help='The epoch of current training')
         self.parser.add_argument('--end_epoch', type=int, default=101, help='Maximum number of iterations')
-        self.parser.add_argument('--batch_size', type=int, default=32, help='Number of data processed per batch')
+        self.parser.add_argument('--batch_size', type=int, default=16, help='Number of data processed per batch')
 
         self.parser.add_argument('--use_gpu', action='store_true', default=32,
                                  help='whether use GPU to training or test')
@@ -71,10 +75,10 @@ class Args(object):
         self.parser.add_argument('--shuffle', action='store_true', default=True,
                                  help='whether shuffle the whole dataset for each epoch')
 
-        self.parser.add_argument('--drop_last', action='store_true', default=True,
+        self.parser.add_argument('--drop_last', action='store_true', default=False,
                                  help='Discard the last insufficient batch_ Size')
 
-        self.parser.add_argument('--pretrain_file', type=str, default='./checkpoints_dir/mae_visualize_vit_large.pth',
+        self.parser.add_argument('--pretrain_file', type=str, default='',
                                  help='pretrain file path or latest model file path')
 
         self.parser.add_argument('--checkpoints_dir', type=str, default=r'./checkpoints_dir',
@@ -102,6 +106,9 @@ class Args(object):
         self.parser.add_argument('--test_ratio', type=float, default=0.2,
                                  help='Ratio of dividing test sets')
 
+        self.parser.add_argument('--decrease_interval', type=int, default=6,
+                                 help='LR func')
+
         self.opts = self.parser.parse_args()
         if torch.cuda.is_available():
             self.opts.use_gpu = True
@@ -121,11 +128,31 @@ class FLOWERExtract(object):
             if files:
                 cls_name = root.split('\\')[-1]
                 for file in files:
-                    cls_map[file] = cls_name
+                    cls_map[file] = cls.cls_id_map()[cls_name]
                     files_path.append(os.path.join(root, file))
         if use_shuffle:
             shuffle(files_path, len(files_path))
         return files_path, cls_map
+
+    @classmethod
+    def cls_id_map(cls):
+        return {
+            'daisy': 0,
+            'dandelion': 1,
+            'roses': 2,
+            'sunflowers': 3,
+            'tulips': 4,
+        }
+
+    @classmethod
+    def id_cls_map(cls):
+        return {
+            0: 'daisy',
+            1: 'dandelion',
+            2: 'roses',
+            3: 'sunflowers',
+            4: 'tulips',
+        }
 
 
 class ImageAugmentationBase(object):
@@ -160,20 +187,26 @@ class TrainBase(object):
             self,
             args_obj: Args,
             model: M,
-            optimizer: torch.optim.Optimizer,
-            scheduler: torch.optim.lr_scheduler.LRScheduler,
-            loss_obj: M,
-            dataset: Dataset = None,
-            dataloader: DataLoader = None,
-            dataset_kwargs: t.Optional[t.Dict] = None,
+            model_name: str,
+            optimizer: t.Optional[torch.optim.Optimizer] = None,
+            scheduler: t.Optional[torch.optim.lr_scheduler.LRScheduler] = None,
+            loss_obj: t.Optional[M] = None,
+            train_dataset: t.Optional[Dataset] = None,
+            validate_dataset: t.Optional[Dataset] = None,
+            train_dataloader: t.Optional[DataLoader] = None,
+            validate_dataloader: t.Optional[DataLoader] = None,
     ):
         self.opts = args_obj.opts
         self.model = model
+        self.model_name = model_name
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.loss_obj = loss_obj
-        self.train_dataset = dataset or DatasetBase(self.opts, img_augmentation=ImageAugmentationBase)
-        self.train_loader = dataloader or DataLoader(
+        self.train_dataset = train_dataset or DatasetBase(self.opts, mode='train',
+                                                          img_augmentation=ImageAugmentationBase)
+        self.validate_dataset = validate_dataset or DatasetBase(self.opts, mode='validate',
+                                                                img_augmentation=ImageAugmentationBase)
+        self.train_loader = train_dataloader or DataLoader(
             self.train_dataset,
             batch_size=self.opts.batch_size,
             shuffle=self.opts.shuffle,
@@ -181,10 +214,42 @@ class TrainBase(object):
             drop_last=self.opts.drop_last,
             collate_fn=base_collate,
         )
+        self.validate_loader = validate_dataloader or DataLoader(
+            self.validate_dataset,
+            batch_size=self.opts.batch_size,
+            shuffle=self.opts.shuffle,
+            num_workers=self.opts.num_workers,
+            drop_last=self.opts.drop_last,
+            collate_fn=base_collate,
+        )
         self.train_num = len(self.train_dataset)
-        self.dataset_kwargs = dataset_kwargs
+        self.validate_num = len(self.validate_dataset)
         self.last_epoch = 0
         self.last_acc = 0.
+
+    @property
+    def optimizer_(self) -> torch.optim.Optimizer:
+        return self.optimizer
+
+    @optimizer_.setter
+    def optimizer_(self, optimizer: M) -> None:
+        self.optimizer = optimizer
+
+    @property
+    def scheduler_(self) -> torch.optim.lr_scheduler.LRScheduler:
+        return self.scheduler
+
+    @scheduler_.setter
+    def scheduler_(self, scheduler: M) -> None:
+        self.scheduler = scheduler
+
+    @property
+    def loss_(self) -> M:
+        return self.loss_obj
+
+    @loss_.setter
+    def loss_(self, loss: M) -> None:
+        self.loss_obj = loss
 
     def __save_model(
             self,
@@ -194,7 +259,7 @@ class TrainBase(object):
         """
         save model, last_accuracy means the best last time
         """
-        model_name = f'{self.model.__name__}epoch{epoch}-{round(accuracy, 4)}-{str(datetime.date.today())}.pth'
+        model_name = f'{self.model_name}-epoch{epoch}-{round(accuracy, 4)}-{str(datetime.date.today())}.pth'
         torch.save({
             'last_epoch': epoch,
             'last_accuracy': accuracy,
@@ -218,7 +283,7 @@ class TrainBase(object):
         """
         Initial learning curvature
         """
-        return min(max(self.opts.batch_size / max_batch * self.opts.lr_base, self.opts.min_lr), self.opts.max_lr)
+        return min(max(self.opts.batch_size / max_batch * self.opts.lr_base, self.opts.lr_min), self.opts.lr_max)
 
     def print_detail(
             self,
@@ -238,7 +303,7 @@ class TrainBase(object):
                    Accuracy: {round(accuracy, 3)}
                    '''
 
-        loop.set_description(f'Epoch [{cur_epoch + 1}/{3}]  Iter [{batch}/{self.train_num // self.opts.batch_size}]')
+        loop.set_description(f'Epoch [{cur_epoch + 1}/{end_epoch}]  Iter [{batch}/{self.train_num // self.opts.batch_size}]')
         loop.set_postfix(cur_batch_loss=round(cur_batch_loss, 5), avg_loss=round(avg_loss, 5),
                          accuracy=round(accuracy, 3))
 
@@ -251,34 +316,66 @@ class TrainBase(object):
             model: M,
             loss_obj: M,
             train_loader: DataLoader,
+            validate_loader: DataLoader,
             optimizer: Optimizer,
             epoch: int,
     ) -> float:
 
         total_loss = 0.
         total_acc = 0.
-        log_name = f'{model.__name__}_log.txt'
+        log_name = f'{self.model_name}_log.txt'
         batch_num = 0
 
+        # train
+        print_log('start train...')
+        self.model.train()
         with open(os.path.join(self.opts.checkpoints_dir, log_name), 'a+') as f:
-            loop = tqdm(train_loader, desc='training...', colour=BAR_COLOR)
+            loop = tqdm(train_loader, desc='training...', colour=BAR_TRAIN_COLOR)
             for batch, (x, label) in enumerate(loop):
                 batch_num += 1
                 if self.opts.use_gpu:
                     x = x.to(self.opts.gpu_id)
+                    label = label.to(self.opts.gpu_id)
                 pred = model(x)
-                cur_loss, cur_acc = loss_obj(pred, label)
+                cur_loss, acc_num = loss_obj(pred, label)
                 optimizer.zero_grad()
                 cur_loss.backward()
                 optimizer.step()
                 total_loss += cur_loss.item()
-                total_acc += cur_acc
+                total_acc += acc_num.item()
 
-                if batch % self.opts.save_frequency == 0:
+                if batch % self.opts.print_frequency == 0:
                     self.print_detail(loop, epoch, self.opts.end_epoch, batch, self.train_num // self.opts.batch_size,
-                                      cur_batch_loss=cur_loss, avg_loss=total_loss / (batch + 1),
-                                      accuracy=total_acc / (batch + 1), log_f=f, write=True)
-        return total_acc / batch_num
+                                      cur_batch_loss=cur_loss.item(), avg_loss=total_loss / (batch + 1),
+                                      accuracy=total_acc / self.train_num, log_f=f, write=True)
+
+        total_loss = 0.
+        total_acc = 0.
+        batch_num = 0
+
+        # validate
+        print_log('\nstart validate...')
+        self.model.eval()
+        with open(os.path.join(self.opts.checkpoints_dir, log_name), 'a+') as f:
+            with torch.no_grad():
+                loop = tqdm(validate_loader, desc='validating...', colour=BAR_VALIDATE_COLOR)
+                for batch, (x, label) in enumerate(loop):
+                    batch_num += 1
+                    if self.opts.use_gpu:
+                        x = x.to(self.opts.gpu_id)
+                        label = label.to(self.opts.gpu_id)
+                    pred = model(x)
+                    cur_loss, acc_num = loss_obj(pred, label)
+                    total_loss += cur_loss.item()
+                    total_acc += acc_num.item()
+
+                    if batch % self.opts.print_frequency == 0:
+                        self.print_detail(loop, epoch, self.opts.end_epoch, batch,
+                                          self.validate_num // self.opts.batch_size,
+                                          cur_batch_loss=cur_loss.item(), avg_loss=total_loss / (batch + 1),
+                                          accuracy=total_acc / self.validate_num, log_f=f, write=True)
+
+        return total_acc / self.validate_num
 
     def main(self):
         """
@@ -286,15 +383,15 @@ class TrainBase(object):
         """
         if not os.path.exists(self.opts.checkpoints_dir):
             os.mkdir(self.opts.checkpoints_dir)
-        print_log(f'Init model --- {self.model.__name__} successfully!')
+        print_log(f'Init model --- {self.model_name} successfully!')
         if self.opts.use_gpu:
             self.model = self.model.to(self.opts.gpu_id)
-        self.model.train()
         self.__load_model()
 
         for e in range(self.last_epoch, self.opts.end_epoch):
             t1 = time.time()
-            avg_acc = self.__train_epoch(self.model, self.loss_obj, self.train_loader, self.optimizer, e)
+            avg_acc = self.__train_epoch(self.model, self.loss_obj, self.train_loader, self.validate_loader,
+                                         self.optimizer, e)
             t2 = time.time()
             self.scheduler.step()
             print_log(f"learning rate: {self.optimizer.state_dict()['param_groups'][0]['lr']}", Fore.BLUE)
@@ -313,6 +410,7 @@ class DatasetBase(Dataset):
     def __init__(
             self,
             opts: argparse.Namespace,
+            mode: str = 'train',
             input_shape: t.Tuple[int, int] = (224, 224),
             img_augmentation: t.Optional[t.Callable] = None,
             img_augmentation_kwargs: t.Optional[t.Dict] = None
@@ -331,14 +429,14 @@ class DatasetBase(Dataset):
             f'Class {dataset_name}Extract should be define and extract function should be implement!'
         self.total_images, self.cls_map = self.anno_transform.extract(self.img_dir)
         self.use_images = []
-        func = getattr(self, f'{self.opts.mode}_data')
+        func = getattr(self, f'{mode}_data')
         func()
 
     def __len__(self):
-        return len(self.total_images)
+        return len(self.use_images)
 
     def __getitem__(self, item):
-        image_path: str = self.total_images[item]
+        image_path: str = self.use_images[item]
         img = Image.open(image_path)
         if self.img_augmentation:
             img = self.img_augmentation(img, self.mean, self.std, self.input_shape)
@@ -364,8 +462,8 @@ class DatasetBase(Dataset):
 if __name__ == '__main__':
     args = Args()
     args.set_train_args()
-    # print(args.opts)
+    print(args.opts)
     # res = FLOWERExtract.extract(r'C:\dataset\flower_dataset')
     # print(res)
-    d = DatasetBase(args.opts)
-    res = d[1]
+    # d = DatasetBase(args.opts)
+    # res = d[1]
