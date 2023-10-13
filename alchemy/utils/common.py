@@ -1,4 +1,5 @@
 import argparse
+import math
 import os.path
 import random
 import time
@@ -56,11 +57,12 @@ class Args(object):
         self.opts = None
 
     def set_train_args(self):
+        self.parser.add_argument('--model_name', type=str, help='Models that need to be loaded')
         self.parser.add_argument('--start_epoch', type=int, default=0, help='The epoch of current training')
         self.parser.add_argument('--end_epoch', type=int, default=101, help='Maximum number of iterations')
         self.parser.add_argument('--batch_size', type=int, default=16, help='Number of data processed per batch')
 
-        self.parser.add_argument('--use_gpu', action='store_true', default=32,
+        self.parser.add_argument('--use_gpu', action='store_true', default=True,
                                  help='whether use GPU to training or test')
         self.parser.add_argument('--gpu_id', type=int, default=0, help='GPU number used')
 
@@ -295,6 +297,7 @@ class TrainBase(object):
             cur_batch_loss: float,
             avg_loss: float,
             accuracy: float,
+            num: int,
             log_f: t.TextIO,
             write: bool = False,
     ) -> None:
@@ -303,7 +306,7 @@ class TrainBase(object):
                    Accuracy: {round(accuracy, 3)}
                    '''
 
-        loop.set_description(f'Epoch [{cur_epoch + 1}/{end_epoch}]  Iter [{batch}/{self.train_num // self.opts.batch_size}]')
+        loop.set_description(f'Epoch [{cur_epoch + 1}/{end_epoch}]  Iter [{batch}/{num // self.opts.batch_size}]')
         loop.set_postfix(cur_batch_loss=round(cur_batch_loss, 5), avg_loss=round(avg_loss, 5),
                          accuracy=round(accuracy, 3))
 
@@ -347,7 +350,7 @@ class TrainBase(object):
                 if batch % self.opts.print_frequency == 0:
                     self.print_detail(loop, epoch, self.opts.end_epoch, batch, self.train_num // self.opts.batch_size,
                                       cur_batch_loss=cur_loss.item(), avg_loss=total_loss / (batch + 1),
-                                      accuracy=total_acc / self.train_num, log_f=f, write=True)
+                                      accuracy=total_acc / self.train_num, num=self.train_num, log_f=f, write=True)
 
         total_loss = 0.
         total_acc = 0.
@@ -373,7 +376,8 @@ class TrainBase(object):
                         self.print_detail(loop, epoch, self.opts.end_epoch, batch,
                                           self.validate_num // self.opts.batch_size,
                                           cur_batch_loss=cur_loss.item(), avg_loss=total_loss / (batch + 1),
-                                          accuracy=total_acc / self.validate_num, log_f=f, write=True)
+                                          accuracy=total_acc / self.validate_num, num=self.validate_num,
+                                          log_f=f, write=True)
 
         return total_acc / self.validate_num
 
@@ -400,6 +404,18 @@ class TrainBase(object):
             if avg_acc > self.last_acc:
                 self.__save_model(e, avg_acc)
                 self.last_acc = avg_acc
+
+
+class ClassifyLoss(nn.Module):
+
+    def __init__(self):
+        super(ClassifyLoss, self).__init__()
+        self.loss_func = nn.CrossEntropyLoss(reduction='mean')
+
+    def forward(self, pred: torch.Tensor, labels: torch.Tensor) -> t.Tuple[torch.Tensor, torch.Tensor]:
+        pred_classes_idx = torch.max(pred, dim=1)[1]
+        acc_num = torch.eq(pred_classes_idx, labels).sum()
+        return self.loss_func(pred, labels), acc_num
 
 
 class DatasetBase(Dataset):
@@ -459,11 +475,18 @@ class DatasetBase(Dataset):
         self.use_images = self.total_images[start_idx:]
 
 
-if __name__ == '__main__':
-    args = Args()
-    args.set_train_args()
-    print(args.opts)
-    # res = FLOWERExtract.extract(r'C:\dataset\flower_dataset')
-    # print(res)
-    # d = DatasetBase(args.opts)
-    # res = d[1]
+def basic_run(model: M, model_name: str, args: Args, loss_obj: ClassifyLoss):
+    """
+    base-model family training
+    """
+    params = [p for p in model.parameters() if p.requires_grad]
+    train = TrainBase(args, model, model_name, loss_obj=loss_obj)
+    optimizer = torch.optim.SGD(params, lr=train.init_lr(), momentum=0.9,
+                                weight_decay=args.opts.weight_decay)
+    lr_func = lambda epoch: min((epoch + 1) / (args.opts.decrease_interval + 1e-8),
+                                0.5 * (math.cos(epoch / args.opts.end_epoch * math.pi) + 1))
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_func, verbose=True)
+
+    train.scheduler_ = scheduler
+    train.optimizer_ = optimizer
+    train.main()

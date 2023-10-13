@@ -87,7 +87,7 @@ class ViTDataset(Dataset):
             normalization: t.Optional[t.Callable] = None,
             distort: float = False,
     ):
-        self.opts = args_train.opts
+        self.opts = args_train().opts
         self.mode = mode
         self.img_dir = os.path.join(self.opts.base_dir, IMAGE_DIR)
         self.use_img = []

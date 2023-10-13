@@ -30,11 +30,11 @@ class Attention(nn.Module):
         self.head_dim = dim // head_num
 
         self.scale = qkv_bias or self.head_dim ** -0.5
-        self.qkv = nn.Conv2d(dim, dim * 3, kernel_size=1, bias=qkv_bias)
+        self.qkv = nn.Conv2d(dim, dim * 3, kernel_size=1, bias=qkv_bias).to(0)
 
         # relative position embedding Rh and Rw, each head is isolated
-        self.rw = nn.Parameter(torch.randn((1, head_num, self.head_dim, 1, width)), requires_grad=True)
-        self.rh = nn.Parameter(torch.randn((1, head_num, self.head_dim, height, 1)), requires_grad=True)
+        self.rw = nn.Parameter(torch.randn((1, head_num, self.head_dim, 1, width)), requires_grad=True).to(0)
+        self.rh = nn.Parameter(torch.randn((1, head_num, self.head_dim, height, 1)), requires_grad=True).to(0)
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x: torch.Tensor):

@@ -14,7 +14,7 @@ from model import ModelFactory, VisionTransformer
 
 class ViTTrain(object):
     def __init__(self):
-        self.opts = args_train.opts
+        self.opts = args_train().opts
 
     def __save_model(
             self,

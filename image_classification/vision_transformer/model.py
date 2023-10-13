@@ -208,7 +208,7 @@ class VisionTransformer(nn.Module):
             representation_size: t.Optional[int] = None,
     ):
         super(VisionTransformer, self).__init__()
-        self.opts = args_train.opts
+        self.opts = args_train().opts
         self.nums_classes = num_classes
         self.num_features = self.embed_dim = embed_dim
         # cls_token

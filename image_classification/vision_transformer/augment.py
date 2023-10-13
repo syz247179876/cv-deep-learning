@@ -65,7 +65,13 @@ class Args(object):
             self.opts.gpu_id = torch.cuda.current_device()
 
 
-args_train = Args()
-args_train.set_train_args()
-args_test = Args()
-args_test.set_test_args()
+def args_train():
+    args_train = Args()
+    args_train.set_train_args()
+    return args_train
+
+
+def args_test():
+    args_test = Args()
+    args_test.set_test_args()
+    return args_test

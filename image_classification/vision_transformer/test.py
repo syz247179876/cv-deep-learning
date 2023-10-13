@@ -12,7 +12,7 @@ from utils import print_log, draw_image, classify_collate_test
 class ViTTest(object):
 
     def __init__(self):
-        self.opts = args_test.opts
+        self.opts = args_test().opts
 
     def main(
             self,
