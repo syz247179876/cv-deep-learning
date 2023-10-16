@@ -279,7 +279,7 @@ class TrainBase(object):
             self.optimizer.load_state_dict(checkpoint['optimizer'])
             self.last_epoch = checkpoint.get('last_epoch', 0)
             self.last_acc = checkpoint.get('last_accuracy', 0.)
-            print_log(f'Load model file {self.opts.pretrain_file} to {self.model.__name__}successfully!')
+            print_log(f'Load model file {self.opts.pretrain_file} to {self.model_name}successfully!')
 
     def init_lr(self, max_batch: int = 64) -> float:
         """

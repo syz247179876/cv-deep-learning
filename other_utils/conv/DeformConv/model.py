@@ -40,7 +40,7 @@ class DeformConv(nn.Module):
         # note: this stride of conv is kernel_size, inorder to increase receptive field.
         self.conv = nn.Conv2d(in_chans, out_chans, kernel_size, kernel_size, groups=groups, bias=bias)
 
-    def _get_pn(self) -> torch.Tensor:
+    def _get_pn(self, dtype: str) -> torch.Tensor:
         """
         Obtain a fixed offset set for the target pixel P0 in conventional convolution
         return dim is (2 * kernel * kernel, 1)
@@ -50,10 +50,10 @@ class DeformConv(nn.Module):
             torch.arange(-(self.kernel_size // 2), self.kernel_size // 2 + 1)
         )
         pn = torch.cat((y.flatten(), x.flatten()), dim=-1)
-        pn = pn.view(1, 2 * self.kernel_size * self.kernel_size, 1, 1)
+        pn = pn.view(1, 2 * self.kernel_size * self.kernel_size, 1, 1).type(dtype)
         return pn
 
-    def _get_p0(self, h: int, w: int):
+    def _get_p0(self, h: int, w: int, dtype: str):
         """
         Calculate the center point coordinates of each convolution kernel
         if self.stride == 2, it means downsampling through convolution
@@ -65,9 +65,9 @@ class DeformConv(nn.Module):
         )
         p0_x = x.flatten().view(1, 1, h, w).repeat(1, self.kernel_size * self.kernel_size, 1, 1)
         p0_y = y.flatten().view(1, 1, h, w).repeat(1, self.kernel_size * self.kernel_size, 1, 1)
-        return torch.cat((p0_y, p0_x), dim=1)
+        return torch.cat((p0_y, p0_x), dim=1).type(dtype)
 
-    def _get_p(self, offset: torch.Tensor):
+    def _get_p(self, offset: torch.Tensor, dtype: str):
         """
         For each pixel on the feature map, its corresponding kxk convolution region
         has offsets in both x and y directions
@@ -78,20 +78,21 @@ class DeformConv(nn.Module):
         # n is kernel_size * kernel_size
         h, w = offset.size(2), offset.size(3)
         # pn dim is (1, 2n, 1, 1)
-        pn = self._get_pn()
+        pn = self._get_pn(dtype)
         # p0 dim is (1, 2n, h, w)
-        p0 = self._get_p0(h, w)
+        p0 = self._get_p0(h, w, dtype)
         p = p0 + pn + offset
         return p
 
     def forward(self, x: torch.Tensor):
         offset = self.offset_conv(x)
+        dtype = offset.type()
         n = self.kernel_size * self.kernel_size
         if self.padding:
             x = self.zero_padding(x)
 
         # dim is (b, 2n, h, w)
-        p = self._get_p(offset)
+        p = self._get_p(offset, dtype)
 
         p = p.contiguous().permute(0, 2, 3, 1)
         # q_lt, q_rb, q_lb, q_rt only represent 4 nearest neighbor position points,
