@@ -5,6 +5,7 @@ from .GhostConv import GhostConv
 from .CondConv import CondConv, RoutingFunc
 from .ODConv import ODConv
 from .BoTBlock import BoTBlock
+from .DeformConv import DeformConv
 
 __all__ = [
     'SEBlock',
@@ -15,4 +16,5 @@ __all__ = [
     'ODConv',
     'RoutingFunc',
     'BoTBlock',
+    'DeformConv',
 ]

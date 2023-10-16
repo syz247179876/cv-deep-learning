@@ -4,6 +4,7 @@ from .GhostNet import resnet_50_ghost, resnet_101_ghost, resnet_152_ghost
 from .ODResNet import resnet18_od, resnet50_od
 from .ResNeXt import resnet50, resnet101, resnet152, ResNeXt50_32x4d, ResNeXt101_32x4d, ResNeXt152_32x4d
 from .SCNet import ResNext_50_SC_32x4d, ResNext_101_SC_32x4d, ResNext_152_SC_32x4d
+from .DeformResNet import resnet_50_deform, resnet_101_deform
 
 # model
 __all__ = [
@@ -38,6 +39,10 @@ __all__ = [
     # SCNet
     'ResNext_50_SC_32x4d',
     'ResNext_101_SC_32x4d',
-    'ResNext_152_SC_32x4d'
+    'ResNext_152_SC_32x4d',
+
+    # DeformNet
+    'resnet_50_deform',
+    'resnet_101_deform',
 
 ]
