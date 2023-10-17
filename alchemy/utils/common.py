@@ -15,6 +15,7 @@ from pathlib import Path
 from PIL import Image
 from PIL.JpegImagePlugin import JpegImageFile
 from colorama import Fore
+from torch.cuda.amp import GradScaler, autocast
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import transforms
@@ -110,6 +111,8 @@ class Args(object):
 
         self.parser.add_argument('--decrease_interval', type=int, default=6,
                                  help='LR func')
+        self.parser.add_argument('--use_amp', action='store_true', default=False,
+                                 help='whether open amp')
 
         self.opts = self.parser.parse_args()
         if torch.cuda.is_available():
@@ -197,6 +200,7 @@ class TrainBase(object):
             validate_dataset: t.Optional[Dataset] = None,
             train_dataloader: t.Optional[DataLoader] = None,
             validate_dataloader: t.Optional[DataLoader] = None,
+            use_amp: bool = False
     ):
         self.opts = args_obj.opts
         self.model = model
@@ -204,6 +208,11 @@ class TrainBase(object):
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.loss_obj = loss_obj
+        self.use_amp = use_amp
+        if use_amp:
+            self.scaler = GradScaler()
+        else:
+            self.scaler = None
         self.train_dataset = train_dataset or DatasetBase(self.opts, mode='train',
                                                           img_augmentation=ImageAugmentationBase)
         self.validate_dataset = validate_dataset or DatasetBase(self.opts, mode='validate',
@@ -321,6 +330,7 @@ class TrainBase(object):
             train_loader: DataLoader,
             validate_loader: DataLoader,
             optimizer: Optimizer,
+            scaler: GradScaler,
             epoch: int,
     ) -> float:
 
@@ -339,11 +349,21 @@ class TrainBase(object):
                 if self.opts.use_gpu:
                     x = x.to(self.opts.gpu_id)
                     label = label.to(self.opts.gpu_id)
-                pred = model(x)
-                cur_loss, acc_num = loss_obj(pred, label)
+                if self.use_amp:
+                    with autocast():
+                        pred = model(x)
+                        cur_loss, acc_num = loss_obj(pred, label)
+                else:
+                    pred = model(x)
+                    cur_loss, acc_num = loss_obj(pred, label)
                 optimizer.zero_grad()
-                cur_loss.backward()
-                optimizer.step()
+                if self.use_amp:
+                    scaler.scale(cur_loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    cur_loss.backward()
+                    optimizer.step()
                 total_loss += cur_loss.item()
                 total_acc += acc_num.item()
 
@@ -395,7 +415,7 @@ class TrainBase(object):
         for e in range(self.last_epoch, self.opts.end_epoch):
             t1 = time.time()
             avg_acc = self.__train_epoch(self.model, self.loss_obj, self.train_loader, self.validate_loader,
-                                         self.optimizer, e)
+                                         self.optimizer, self.scaler, e)
             t2 = time.time()
             self.scheduler.step()
             print_log(f"learning rate: {self.optimizer.state_dict()['param_groups'][0]['lr']}", Fore.BLUE)
@@ -480,7 +500,8 @@ def basic_run(model: M, model_name: str, args: Args, loss_obj: ClassifyLoss):
     base-model family training
     """
     params = [p for p in model.parameters() if p.requires_grad]
-    train = TrainBase(args, model, model_name, loss_obj=loss_obj)
+    train = TrainBase(args, model, model_name, loss_obj=loss_obj, use_amp=args.opts.use_amp)
+    print(args.opts)
     optimizer = torch.optim.SGD(params, lr=train.init_lr(), momentum=0.9,
                                 weight_decay=args.opts.weight_decay)
     lr_func = lambda epoch: min((epoch + 1) / (args.opts.decrease_interval + 1e-8),
