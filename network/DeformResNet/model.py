@@ -2,6 +2,8 @@ import torch.nn as nn
 import torch
 import typing as t
 
+from torchsummary import summary
+
 from network.ResNeXt import BottleNeck, ResNeXt
 from other_utils.conv import DeformConv
 from other_utils.utils import auto_pad
@@ -96,7 +98,7 @@ class DeformBottleNeck(nn.Module):
 def resnet_50_deform(num_classes: int = 1000, classifier: bool = True):
     DeformBottleNeck.expansion = 4
     return ResNeXt(
-        block=[DeformBottleNeck, DeformBottleNeck, DeformBottleNeck, DeformBottleNeck],
+        block=[BottleNeck, BottleNeck, BottleNeck, DeformBottleNeck],
         layers=[3, 4, 6, 3],
         layers_output=[64, 128, 256, 512],
         num_classes=num_classes,
@@ -108,7 +110,7 @@ def resnet_50_deform(num_classes: int = 1000, classifier: bool = True):
 def resnet_101_deform(num_classes: int = 1000, classifier: bool = True):
     DeformBottleNeck.expansion = 4
     return ResNeXt(
-        block=[DeformBottleNeck, DeformBottleNeck, DeformBottleNeck, DeformBottleNeck],
+        block=[BottleNeck, BottleNeck, BottleNeck, DeformBottleNeck],
         layers=[3, 4, 23, 3],
         layers_output=[64, 128, 256, 512],
         num_classes=num_classes,
@@ -118,7 +120,9 @@ def resnet_101_deform(num_classes: int = 1000, classifier: bool = True):
 
 
 if __name__ == '__main__':
-    _x = torch.rand((3, 3, 224, 224))
-    model = resnet_50_deform()
-    res = model(_x)
-    print(res.size())
+    _x = torch.rand((3, 3, 224, 224)).to(0)
+    model = resnet_50_deform(num_classes=1000).to(0)
+    # model = resnet50(pretrained=False).to(0)
+    # res = model(_x)
+    # print(res.size())
+    summary(model, (3, 224, 224))

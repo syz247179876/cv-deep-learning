@@ -1,3 +1,6 @@
+"""
+Basic train and validate Class
+"""
 import argparse
 import math
 import os.path
@@ -21,6 +24,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import transforms
 from tqdm import tqdm
 from alchemy.settings import *
+from alchemy.utils.weight import pretrained_weight
 
 FILE = r'C:\dataset\flower_dataset'
 ROOT = Path(FILE).resolve()
@@ -89,6 +93,8 @@ class Args(object):
 
         self.parser.add_argument('--print_frequency', type=int, default=1,
                                  help='Frequency of checking and printing models information')
+        self.parser.add_argument('--validate_frequency', type=int, default=5,
+                                 help='Frequency of validating model')
 
         self.parser.add_argument('--lr_base', type=float, default=1.5e-3, help='base learning rate')
         self.parser.add_argument('--lr_max', type=float, default=5e-2, help='maximum of learning rate')
@@ -280,7 +286,7 @@ class TrainBase(object):
 
     def __load_model(self):
         """
-        load model
+        Load weights saved through transfer training
         """
         if self.opts.pretrain_file:
             checkpoint = torch.load(self.opts.pretrain_file)
@@ -322,6 +328,13 @@ class TrainBase(object):
         if write:
             log_f.write(info)
             log_f.flush()
+
+    def load_pretrained(self, model_name: str):
+        """
+        load pretrained weights, such as resnet18, resnet50,  resnet101 and others, then make adjustments and freezes.
+        """
+        weight_file = pretrained_weight.get_weight(model_name)
+        weights = torch.load(weight_file)
 
     def __train_epoch(
             self,
@@ -377,27 +390,28 @@ class TrainBase(object):
         batch_num = 0
 
         # validate
-        print_log('\nstart validate...')
-        self.model.eval()
-        with open(os.path.join(self.opts.checkpoints_dir, log_name), 'a+') as f:
-            with torch.no_grad():
-                loop = tqdm(validate_loader, desc='validating...', colour=BAR_VALIDATE_COLOR)
-                for batch, (x, label) in enumerate(loop):
-                    batch_num += 1
-                    if self.opts.use_gpu:
-                        x = x.to(self.opts.gpu_id)
-                        label = label.to(self.opts.gpu_id)
-                    pred = model(x)
-                    cur_loss, acc_num = loss_obj(pred, label)
-                    total_loss += cur_loss.item()
-                    total_acc += acc_num.item()
+        if (epoch + 1) % self.opts.validate_frequency == 0 or epoch > int(0.6 * self.opts.end_epoch):
+            print_log('\nstart validate...')
+            self.model.eval()
+            with open(os.path.join(self.opts.checkpoints_dir, log_name), 'a+') as f:
+                with torch.no_grad():
+                    loop = tqdm(validate_loader, desc='validating...', colour=BAR_VALIDATE_COLOR)
+                    for batch, (x, label) in enumerate(loop):
+                        batch_num += 1
+                        if self.opts.use_gpu:
+                            x = x.to(self.opts.gpu_id)
+                            label = label.to(self.opts.gpu_id)
+                        pred = model(x)
+                        cur_loss, acc_num = loss_obj(pred, label)
+                        total_loss += cur_loss.item()
+                        total_acc += acc_num.item()
 
-                    if batch % self.opts.print_frequency == 0:
-                        self.print_detail(loop, epoch, self.opts.end_epoch, batch,
-                                          self.validate_num // self.opts.batch_size,
-                                          cur_batch_loss=cur_loss.item(), avg_loss=total_loss / (batch + 1),
-                                          accuracy=total_acc / self.validate_num, num=self.validate_num,
-                                          log_f=f, write=True)
+                        if batch % self.opts.print_frequency == 0:
+                            self.print_detail(loop, epoch, self.opts.end_epoch, batch,
+                                              self.validate_num // self.opts.batch_size,
+                                              cur_batch_loss=cur_loss.item(), avg_loss=total_loss / (batch + 1),
+                                              accuracy=total_acc / self.validate_num, num=self.validate_num,
+                                              log_f=f, write=True)
 
         return total_acc / self.validate_num
 
