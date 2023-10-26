@@ -16,10 +16,6 @@ def _make_divisible(v, divisor, min_value=None):
     It ensures that all layers have a channel number that is divisible by 8
     It can be seen here:
     https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet/mobilenet.py
-    :param v:
-    :param divisor:
-    :param min_value:
-    :return:
     """
     if min_value is None:
         min_value = divisor
@@ -64,12 +60,12 @@ class Conv(nn.Module):
 class InvertedResidual(nn.Module):
     """
     the bottleneck(InvertedResidual) of MobileNetV2.
-    In MobileNet, there are fewer channels at both ends and more channels in the middle for Residuals, which exactly
-    opposite to Resnet.
+    In MobileNet, there are fewer channels at both ends and more channels in the middle for residual, which exactly
+    opposite to ResNet.
 
     From my personal, I think MobileNet V2 use first 1x1 conv to enhance dimension in order to prevent the drawback
-    of DWC extracting less rich feature information on fewer feature dimensions, so it different from ResNet residual
-    block.
+    of DWC extracting less rich feature information on fewer feature dimensions, that is why it different from ResNet
+    residual block.
     """
 
     def __init__(
@@ -117,7 +113,7 @@ class InvertedResidual(nn.Module):
 
 class MobileNetV2(nn.Module):
     """
-    one hyper-parameters called Width Multiplier
+    MobileNet V2 proposed inverted residual and linear bottleneck based on MobileNet V1
     """
 
     def __init__(
