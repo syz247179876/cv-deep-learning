@@ -28,10 +28,10 @@ class CAInvertedResidual(nn.Module):
         super(CAInvertedResidual, self).__init__()
         # used for dimensionality enhancement
         hidden_chans = int(in_chans * expand_t)
+        self.identity = (stride == 1 and in_chans == out_chans)
         if expand_t == 1:
             self.conv1 = Conv(hidden_chans, hidden_chans, 3, stride, groups=hidden_chans, norm_layer=norm_layer,
                               act_layer=act_layer)
-            self.attention = CABlock(hidden_chans, hidden_chans, reduction, norm_layer=norm_layer)
             self.conv2 = nn.Conv2d(hidden_chans, out_chans, 1, bias=False)
             self.bn2 = nn.BatchNorm2d(out_chans)
         else:
@@ -45,10 +45,14 @@ class CAInvertedResidual(nn.Module):
         self.out_chans = out_chans
 
     def forward(self, x: torch.Tensor):
+        _identity = x
         if self.expand_t == 1:
-            return self.bn2(self.conv2(self.attention(self.conv1(x))))
+            x = self.bn2(self.conv2(self.conv1(x)))
         else:
-            return self.bn3(self.conv3(self.attention(self.conv2(self.conv1(x)))))
+            x = self.bn3(self.conv3(self.attention(self.conv2(self.conv1(x)))))
+        if self.identity:
+            x = _identity + x
+        return x
 
 
 def ca_mobilenet_v2_1(num_classes: int = 1000, classifier: bool = True, reduction: int = 32):
@@ -61,7 +65,7 @@ def ca_mobilenet_v2_1(num_classes: int = 1000, classifier: bool = True, reductio
     )
 
 
-def ca_mobilenet_v2_075(num_classes: int = 1000, classifier: bool = True, reduction: int = 32):
+def ca_mobilenet_v2_075(num_classes: int = 1000, classifier: bool = True, reduction: int = 24):
     return MobileNetV2(
         block=CAInvertedResidual,
         cfg_name='mobilenetv2-0.75.yaml',
@@ -71,7 +75,7 @@ def ca_mobilenet_v2_075(num_classes: int = 1000, classifier: bool = True, reduct
     )
 
 
-def ca_mobilenet_v2_05(num_classes: int = 1000, classifier: bool = True, reduction: int = 32):
+def ca_mobilenet_v2_05(num_classes: int = 1000, classifier: bool = True, reduction: int = 16):
     return MobileNetV2(
         block=CAInvertedResidual,
         cfg_name='mobilenetv2-0.5.yaml',

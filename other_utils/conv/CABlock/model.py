@@ -1,7 +1,22 @@
+import math
+
 import torch
 import torch.nn as nn
 import typing as t
 from torchsummary import summary
+
+
+class SpatialACT(nn.Module):
+    """
+    Compute the spatial attention
+    """
+
+    def __init__(self, inplace=True):
+        super(SpatialACT, self).__init__()
+        self.act = nn.ReLU6(inplace=inplace)
+
+    def forward(self, x: torch.Tensor):
+        return x * self.act(x + 3) / 6
 
 
 class CABlock(nn.Module):
@@ -40,14 +55,31 @@ class CABlock(nn.Module):
         # (C, H, 1)
         self.gap_w = nn.AdaptiveAvgPool2d((None, 1))
 
-        hidden_chans = int(in_chans // reduction)
+        hidden_chans = max(8, in_chans // reduction)
         self.conv1 = nn.Conv2d(in_chans, hidden_chans, 1)
         self.bn1 = norm_layer(hidden_chans)
-        self.act = act_layer(inplace=True)
+        self.act = SpatialACT(inplace=True)
 
         self.attn_h = nn.Conv2d(hidden_chans, out_chans, 1)
         self.attn_w = nn.Conv2d(hidden_chans, out_chans, 1)
         self.sigmoid = nn.Sigmoid()
+
+        self._init_weight()
+
+    def _init_weight(self):
+        for m in self.modules():
+            if isinstance(m, nn.BatchNorm2d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Conv2d):
+                # Obey uniform distribution during attention initialization
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
     def forward(self, x: torch.Tensor):
         identity = x

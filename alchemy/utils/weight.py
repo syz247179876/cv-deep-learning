@@ -17,7 +17,8 @@ class PretrainedWeight(object):
             return PRETRAINED_MODEL[file_name]
         else:
             # TODO: download weight through donw_path
-            pass
+            raise ValueError(f'please download weight: {file_name} ,then, put .pth into /alchmey/weights and '
+                             f'add mapping of "{file_name}" and path in /alchmey/weights')
 
     def load_pretrained(self, model_name: str):
         """

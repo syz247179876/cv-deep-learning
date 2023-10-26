@@ -85,8 +85,10 @@ class Args(object):
         self.parser.add_argument('--drop_last', action='store_true', default=False,
                                  help='Discard the last insufficient batch_ Size')
 
-        self.parser.add_argument('--pretrain_file', type=str, default='',
-                                 help='pretrain file path or latest model file path')
+        self.parser.add_argument('--pretrained', action='store_true', default=False,
+                                 help='whether use pretrain file')
+        self.parser.add_argument('--checkpoint_file', type=str, default='',
+                                 help='latest best model file path')
 
         self.parser.add_argument('--checkpoints_dir', type=str, default=r'./checkpoints_dir',
                                  help='model file path')
@@ -284,17 +286,17 @@ class TrainBase(object):
             'optimizer': self.optimizer.state_dict()
         }, os.path.join(self.opts.checkpoints_dir, model_name))
 
-    def __load_model(self):
+    def load_model(self):
         """
         Load weights saved through transfer training
         """
-        if self.opts.pretrain_file:
-            checkpoint = torch.load(self.opts.pretrain_file)
+        if self.opts.checkpoint_file:
+            checkpoint = torch.load(self.opts.checkpoint_file)
             self.model.load_state_dict(checkpoint['model'])
             self.optimizer.load_state_dict(checkpoint['optimizer'])
             self.last_epoch = checkpoint.get('last_epoch', 0)
             self.last_acc = checkpoint.get('last_accuracy', 0.)
-            print_log(f'Load model file {self.opts.pretrain_file} to {self.model_name}successfully!')
+            print_log(f'Load model file {self.opts.checkpoint_file} to {self.model_name}successfully!')
 
     def init_lr(self, max_batch: int = 64) -> float:
         """
@@ -329,12 +331,24 @@ class TrainBase(object):
             log_f.write(info)
             log_f.flush()
 
-    def load_pretrained(self, model_name: str):
+    def load_pretrained(self):
         """
-        load pretrained weights, such as resnet18, resnet50,  resnet101 and others, then make adjustments and freezes.
+        load partial pretrained weights, such as resnet18, resnet50,  resnet101 and others,
+        then make adjustments and freezes.
         """
+        model_name = self.opts.model_name
         weight_file = pretrained_weight.get_weight(model_name)
         weights = torch.load(weight_file)
+        model_dict = self.model.state_dict()
+        for key_p, key_w in zip(list(model_dict.keys())[:-2], list(weights.keys())[: -2]):
+            value_p, value_w = model_dict[key_p], weights[key_w]
+            if value_p.shape != value_w.shape:
+                raise ValueError(f'{key_p}: {value_p.shape} and {key_w}: {value_w.shape} shape not match')
+            model_dict[key_p] = value_w
+        self.model.load_state_dict(model_dict)
+
+    def freeze_layers(self):
+        pass
 
     def __train_epoch(
             self,
@@ -424,7 +438,11 @@ class TrainBase(object):
         print_log(f'Init model --- {self.model_name} successfully!')
         if self.opts.use_gpu:
             self.model = self.model.to(self.opts.gpu_id)
-        self.__load_model()
+        if self.opts.pretrained:
+            self.load_pretrained()
+        else:
+            self.load_model()
+        self.freeze_layers()
 
         for e in range(self.last_epoch, self.opts.end_epoch):
             t1 = time.time()
@@ -509,12 +527,12 @@ class DatasetBase(Dataset):
         self.use_images = self.total_images[start_idx:]
 
 
-def basic_run(model: M, model_name: str, args: Args, loss_obj: ClassifyLoss):
+def basic_run(model: M, model_name: str, args: Args, loss_obj: ClassifyLoss, train_class: t.Callable = TrainBase):
     """
     base-model family training
     """
     params = [p for p in model.parameters() if p.requires_grad]
-    train = TrainBase(args, model, model_name, loss_obj=loss_obj, use_amp=args.opts.use_amp)
+    train = train_class(args, model, model_name, loss_obj=loss_obj, use_amp=args.opts.use_amp)
     print(args.opts)
     optimizer = torch.optim.SGD(params, lr=train.init_lr(), momentum=0.9,
                                 weight_decay=args.opts.weight_decay)

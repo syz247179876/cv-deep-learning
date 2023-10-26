@@ -88,6 +88,7 @@ class InvertedResidual(nn.Module):
         super(InvertedResidual, self).__init__()
         # used for dimensionality enhancement
         hidden_chans = int(in_chans * expand_t)
+        self.identity = stride == 1 and in_chans == out_chans
         if expand_t == 1:
             self.conv1 = Conv(hidden_chans, hidden_chans, 3, stride, groups=hidden_chans, norm_layer=norm_layer,
                               act_layer=act_layer)
@@ -104,10 +105,14 @@ class InvertedResidual(nn.Module):
         self.out_chans = out_chans
 
     def forward(self, x: torch.Tensor):
+        _identity = x
         if self.expand_t == 1:
-            return self.bn2(self.conv2(self.conv1(x)))
+            x = self.bn2(self.conv2(self.conv1(x)))
         else:
-            return self.bn3(self.conv3(self.conv2(self.conv1(x))))
+            x = self.bn3(self.conv3(self.conv2(self.conv1(x))))
+        if self.identity:
+            x = _identity + x
+        return x
 
 
 class MobileNetV2(nn.Module):
@@ -149,7 +154,7 @@ class MobileNetV2(nn.Module):
         self.gap = nn.AdaptiveAvgPool2d((1, 1))
 
         if classifier:
-            self.head = nn.Sequential(
+            self.classifier_head = nn.Sequential(
                 nn.Dropout(0.1),
                 nn.Linear(out_chans, num_classes)
             )
@@ -159,7 +164,7 @@ class MobileNetV2(nn.Module):
         x = self.conv1(x)
         if self.classifier:
             x = self.gap(x).view(x.size(0), -1)
-            x = self.head(x)
+            x = self.classifier_head(x)
         return x
 
 

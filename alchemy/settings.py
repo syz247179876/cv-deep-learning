@@ -19,4 +19,8 @@ PRETRAINED_MODEL = {
     'resnet50': os.path.join(ROOT, 'weights/resnet50-0676ba61.pth'),
     'resnet101': os.path.join(ROOT, 'weights/resnet101-63fe2227.pth'),
     'resnet152': os.path.join(ROOT, 'weights/resnet152-394f9c45.pth'),
+    'ca_mobilenet_v2_1': os.path.join(ROOT, 'weights/mbv2_ca1.0.pth'),
+    'mobilenet_v2_1': os.path.join(ROOT, 'weights/mobilenetv2_1.0-0c6065bc.pth'),
+    'mobilenet_v2_075': os.path.join(ROOT, 'weights/mobilenetv2_0.75-dace9791.pth'),
+    'mobilenet_v2_05': os.path.join(ROOT, 'weights/mobilenetv2_0.5-eaa6f9ad.pth'),
 }
