@@ -346,6 +346,7 @@ class TrainBase(object):
                 raise ValueError(f'{key_p}: {value_p.shape} and {key_w}: {value_w.shape} shape not match')
             model_dict[key_p] = value_w
         self.model.load_state_dict(model_dict)
+        print_log(f'Load pretrained file {weight_file} to {self.model_name}successfully!')
 
     def freeze_layers(self):
         pass

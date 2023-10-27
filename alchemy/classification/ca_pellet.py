@@ -2,7 +2,7 @@ import sys
 
 if r'D:\projects\cv-deep-learning' not in sys.path:
     sys.path.append(r'D:\projects\cv-deep-learning')
-from network import ca_mobilenet_v2_1, ca_mobilenet_v2_075, ca_mobilenet_v2_05
+from Attention import ca_mobilenet_v2_1, ca_mobilenet_v2_075, ca_mobilenet_v2_05
 from alchemy.utils import Args, ClassifyLoss, basic_run, TrainBase
 
 

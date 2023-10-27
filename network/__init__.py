@@ -6,7 +6,6 @@ from .ResNeXt import resnet50, resnet101, resnet152, ResNeXt50_32x4d, ResNeXt101
 from .SCNet import ResNext_50_SC_32x4d, ResNext_101_SC_32x4d, ResNext_152_SC_32x4d
 from .DeformResNet import resnet_50_deform, resnet_101_deform
 from .MobileNetV2 import mobilenet_v2_1, mobilenet_v2_075, mobilenet_v2_05
-from .CAMobileNetV2 import ca_mobilenet_v2_1, ca_mobilenet_v2_075, ca_mobilenet_v2_05
 
 # model
 __all__ = [
@@ -51,10 +50,5 @@ __all__ = [
     'mobilenet_v2_1',
     'mobilenet_v2_075',
     'mobilenet_v2_05',
-
-    # # MobileNet V2 + coordinate attention
-    'ca_mobilenet_v2_1',
-    'ca_mobilenet_v2_075',
-    'ca_mobilenet_v2_05',
 
 ]
