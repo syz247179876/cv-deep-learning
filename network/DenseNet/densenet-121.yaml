@@ -1,0 +1,19 @@
+# config of DenseNet-121
+
+# init feature channel
+feature_num: 64
+
+# the growth rate for all dense blocks in DenseNet-121
+growth_rate: 32
+
+# the number of Dense Block for each layer, expect layer1
+block_nums: [6, 12, 24, 16]
+
+# use in the Transition, change the input channel in next Dense Block
+compress_ratio: 0.5
+
+# scale factor in the Dense Block, use 1x1, trans from l * growth_rate to scale_factor * growth_rate
+scale_factor: 4
+
+# use for regularization in Dense Block
+drop_ratio: 0.1
