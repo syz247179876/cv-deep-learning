@@ -30,16 +30,21 @@ class DenseNet(nn.Module):
         self.layer1 = nn.Sequential(*(
             nn.Conv2d(3, feature_num, 7, 2, padding=auto_pad(7), bias=False),
             nn.BatchNorm2d(feature_num),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(3, 2, padding=auto_pad(3))
         ))
         self.layer2_5 = nn.ModuleList()
 
-        for block_num in block_nums:
+        for block_num in block_nums[:-1]:
             self.layer2_5.append(nn.Sequential(*(
                 DenseBlock(feature_num, growth_rate, block_num, scale_factor, drop_ratio),
                 TransitionLayer(feature_num + block_num * growth_rate, int(feature_num * compress_ratio))
             )))
             feature_num = int(feature_num * compress_ratio)
+        self.layer2_5.append(
+            DenseBlock(feature_num, growth_rate, block_nums[-1], scale_factor, drop_ratio)
+        )
+        feature_num += block_nums[-1] * growth_rate
 
         self.classifier = classifier
         if classifier:
@@ -120,7 +125,7 @@ def densenet_264(cfg_name: str = 'densenet-264.yaml', num_classes: int = 1000, c
 
 if __name__ == '__main__':
     _x = torch.rand((2, 3, 224, 224)).to(0)
-    model = densenet_264().to(0)
+    model = densenet_169().to(0)
 
     res = model(_x)
     summary(model, input_size=(3, 224, 224))

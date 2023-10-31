@@ -7,7 +7,7 @@ from other_utils.utils import auto_pad
 
 class Conv(nn.Module):
     """
-    Basic Convolution include
+    Basic Convolution include Conv2d, BN, Relu
     """
 
     def __init__(
@@ -24,7 +24,7 @@ class Conv(nn.Module):
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         if act_layer is None:
-            act_layer = nn.ReLU
+            act_layer = nn.LeakyReLU
         self.conv = nn.Conv2d(in_chans, out_chans, kernel_size, stride, auto_pad(kernel_size),
                               groups=groups, bias=False)
         self.norm = norm_layer(out_chans)

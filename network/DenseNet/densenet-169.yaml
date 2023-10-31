@@ -1,6 +1,6 @@
 # config of DenseNet-121
 
-# init feature channel
+# init feature channel, it can be double of growth_rate
 feature_num: 64
 
 # the growth rate for all dense blocks in DenseNet-169

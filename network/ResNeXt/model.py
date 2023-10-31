@@ -27,7 +27,7 @@ class Conv(nn.Module):
         self.conv = nn.Conv2d(in_chans, out_chans, kernel_size, stride,
                               padding=1 if kernel_size == 3 else 0, groups=groups, bias=False)
         self.bn = norm_layer(out_chans)
-        self.act = act_layer()
+        self.act = act_layer(inplace=True)
 
     def forward(self, x: torch.Tensor):
         return self.act(self.bn(self.conv(x)))
@@ -191,26 +191,26 @@ class ResNeXt(nn.Module):
         self.act = self.act_layer(inplace=True)
 
         # stage-conv2, 3x3 kernel, max pool, s = 2, bottleneck
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block[0], layers_output[0], layers[0], base_width=base_width, **kwargs)
+        self.max_pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self.make_layer(block[0], layers_output[0], layers[0], base_width=base_width, **kwargs)
 
         # stage-conv3
-        self.layer2 = self._make_layer(block[1], layers_output[1], layers[1], 2, base_width=base_width, **kwargs)
+        self.layer2 = self.make_layer(block[1], layers_output[1], layers[1], 2, base_width=base_width, **kwargs)
 
         # stage-conv4
-        self.layer3 = self._make_layer(block[2], layers_output[2], layers[2], 2, base_width=base_width, **kwargs)
+        self.layer3 = self.make_layer(block[2], layers_output[2], layers[2], 2, base_width=base_width, **kwargs)
 
         # stage-conv5
-        self.layer4 = self._make_layer(block[3], layers_output[3], layers[3], 2, base_width=base_width, **kwargs)
+        self.layer4 = self.make_layer(block[3], layers_output[3], layers[3], 2, base_width=base_width, **kwargs)
         self.classifier = classifier
         if classifier:
             self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
             self.fc = nn.Linear(layers_output[-1] * block[-1].expansion, num_classes)
 
-        self.apply(self._init_weights)
+        self.apply(self.init_weights)
 
     @staticmethod
-    def _init_weights(m: nn.Module):
+    def init_weights(m: nn.Module):
         if isinstance(m, nn.Conv2d):
             # Initialize using normal distribution
             nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -218,7 +218,7 @@ class ResNeXt(nn.Module):
             nn.init.constant_(m.weight, 1)
             nn.init.constant_(m.bias, 0)
 
-    def _make_layer(
+    def make_layer(
             self,
             block: t.Type[t.Union[BasicBlock, BottleNeck, t.Callable]],
             out_chans: int,
@@ -264,7 +264,7 @@ class ResNeXt(nn.Module):
         x = self.act(x)
 
         # stage-conv2
-        x = self.maxpool(x)
+        x = self.max_pool(x)
         x = self.layer1(x)
 
         # stage-conv3
