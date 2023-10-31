@@ -2,7 +2,7 @@
 
 ### 一、目前已学习或复现的模型如下：
 
-1.轻量化网络：
+#### 1.轻量化网络：
 - MobileNetV2 (已读论文, 已复现)  
     论文地址：https://arxiv.org/abs/1801.04381v4  
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)
@@ -14,8 +14,11 @@
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/other_utils/conv)
 - EfficientNet (已读论文, 未复现)  
     论文地址：https://arxiv.org/abs/1905.11946v5  
+- CSPNet (已读论文, 已复现)
+    论文地址：https://arxiv.org/pdf/1911.11929v1.pdf
+    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)
 
-2.注意力机制的网络：
+#### 2.注意力机制的网络：
 - SENet (已读论文, 已复现)  
     论文地址：https://arxiv.org/abs/1709.01507v4  
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/Attention)
@@ -47,7 +50,7 @@
 - Deformable DETR (已读论文, 未复现, 已读源码)  
     论文地址：https://openreview.net/pdf?id=gZ9hCDWe6ke
 
-3.动态卷积网络：
+#### 3.动态卷积网络：
 - CondConv + ResNet/MobileNetV2 (已读论文, 已复现)  
     论文地址：https://arxiv.org/abs/1904.04971v3  
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)
@@ -55,7 +58,7 @@
     论文地址：https://openreview.net/pdf?id=DmpCfq6Mg39  
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)
 
-4.Yolo系列：
+#### 4.Yolo系列：
 - YoloV1 (已读论文, 已复现)  
     论文地址：https://arxiv.org/abs/1506.02640v5  
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/object_detection)
@@ -68,4 +71,8 @@
 - YoloV5 (未复现, 已读源码)  
 
 
+#### 5.其他CNN论文：
+- DenseNet(已读论文, 已复现)
+    论文地址：https://arxiv.org/pdf/1608.06993v5.pdf
+    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)
 
