@@ -2,10 +2,12 @@
 Basic train and validate Class
 """
 import argparse
+import json
 import math
 import os.path
 import random
 import time
+from collections import OrderedDict
 
 import numpy as np
 import torch.cuda
@@ -27,7 +29,8 @@ from alchemy.settings import *
 from alchemy.utils.weight import pretrained_weight
 
 FILE = r'C:\dataset\flower_dataset'
-ROOT = Path(FILE).resolve()
+ALCHEMY_ROOT = Path('../').resolve()
+DATASET_ROOT = Path(FILE).resolve()
 
 M = t.TypeVar('M', bound=nn.Module)
 
@@ -78,7 +81,7 @@ class Args(object):
         self.parser.add_argument('--dataset_name', type=str, default='flower',
                                  help='Method prefixes related to data names')
 
-        self.parser.add_argument('--dataset_path', type=str, default=ROOT, help='dataset path')
+        self.parser.add_argument('--dataset_path', type=str, default=DATASET_ROOT, help='dataset path')
         self.parser.add_argument('--shuffle', action='store_true', default=True,
                                  help='whether shuffle the whole dataset for each epoch')
 
@@ -278,7 +281,8 @@ class TrainBase(object):
         """
         save model, last_accuracy means the best last time
         """
-        model_name = f'{self.model_name}-epoch{epoch}-{round(accuracy, 4)}-{str(datetime.date.today())}.pth'
+        model_name = f'{self.model_name}-epoch{epoch}-{round(accuracy, 4)}-' \
+                     f'{str(datetime.date.today())}-{"pretrained" if self.opts.pretrained else ""}.pth'
         torch.save({
             'last_epoch': epoch,
             'last_accuracy': accuracy,
@@ -286,7 +290,7 @@ class TrainBase(object):
             'optimizer': self.optimizer.state_dict()
         }, os.path.join(self.opts.checkpoints_dir, model_name))
 
-    def load_model(self):
+    def load_model(self) -> None:
         """
         Load weights saved through transfer training
         """
@@ -331,22 +335,71 @@ class TrainBase(object):
             log_f.write(info)
             log_f.flush()
 
-    def load_pretrained(self):
+    def load_pretrained(self, ignore_layers: t.Optional[t.List] = None):
         """
-        load partial pretrained weights, such as resnet18, resnet50,  resnet101 and others,
-        then make adjustments and freezes.
+        load partial pretrained weights, such as ResNet, MobileNet,
+        then make some adjustments and freezes.
         """
+
+        maps = {}
         model_name = self.opts.model_name
+        if os.path.exists(NET_MAP.get(model_name, '')):
+            with open(NET_MAP[model_name], 'r') as f:
+                maps = json.load(f)
         weight_file = pretrained_weight.get_weight(model_name)
         weights = torch.load(weight_file)
         model_dict = self.model.state_dict()
-        for key_p, key_w in zip(list(model_dict.keys())[:-2], list(weights.keys())[: -2]):
-            value_p, value_w = model_dict[key_p], weights[key_w]
-            if value_p.shape != value_w.shape:
-                raise ValueError(f'{key_p}: {value_p.shape} and {key_w}: {value_w.shape} shape not match')
-            model_dict[key_p] = value_w
-        self.model.load_state_dict(model_dict)
-        print_log(f'Load pretrained file {weight_file} to {self.model_name}successfully!')
+        flag = False
+        new_model_dict = OrderedDict()
+        for key, value in weights.items():
+            if 'num_batches_tracked' in key:
+                flag = True
+                break
+        if not flag:
+            for key, value in model_dict.items():
+                if 'num_batches_tracked' in key:
+                    continue
+                else:
+                    new_model_dict[key] = value
+        else:
+            for key, value in model_dict.items():
+                new_model_dict[key] = value
+
+        # Initialize weights based on pretrained maps
+        if maps:
+            for key, value in new_model_dict.items():
+                # ignore some layer, such as fc layer in the last
+                skip = False
+                if ignore_layers:
+                    for ignore_layer in ignore_layers:
+                        if ignore_layer in key:
+                            skip = True
+                            break
+                if skip or key not in maps:
+                    continue
+
+                key_p, key_w = key, maps[key]
+                if new_model_dict[key_p].shape != weights[key_w].shape:
+                    raise ValueError(f'{key_p}: {new_model_dict[key_p].shape} '
+                                     f'and {key_w}: {weights[key_w].shape} shape not match')
+                new_model_dict[key_p] = weights[key_w]
+        else:
+            n_l = list(new_model_dict.keys())
+            n_w = list(weights.keys())
+            for key_p, key_w in zip(n_l[:-2], n_w[: -2]):
+                value_p, value_w = new_model_dict[key_p], weights[key_w]
+                if value_p.shape != value_w.shape:
+                    raise ValueError(f'{key_p}: {value_p.shape} and {key_w}: {value_w.shape} shape not match')
+                maps[key_p] = key_w
+                new_model_dict[key_p] = value_w
+            maps[n_l[-2]] = n_w[-2]
+            maps[n_l[-1]] = n_w[-1]
+
+        self.model.load_state_dict(new_model_dict, strict=False)
+        if not os.path.exists(NET_MAP.get(model_name, '')):
+            with open(NET_MAP[model_name], 'w') as f:
+                json.dump(maps, f)
+        print_log(f'Load pretrained file {weight_file} to {self.model_name} successfully!')
 
     def freeze_layers(self):
         pass
@@ -430,7 +483,7 @@ class TrainBase(object):
 
         return total_acc / self.validate_num
 
-    def main(self):
+    def main(self, **kwargs):
         """
         train entrance
         """
@@ -440,7 +493,7 @@ class TrainBase(object):
         if self.opts.use_gpu:
             self.model = self.model.to(self.opts.gpu_id)
         if self.opts.pretrained:
-            self.load_pretrained()
+            self.load_pretrained(kwargs.get('ignore_layers'))
         else:
             self.load_model()
         self.freeze_layers()
@@ -528,7 +581,14 @@ class DatasetBase(Dataset):
         self.use_images = self.total_images[start_idx:]
 
 
-def basic_run(model: M, model_name: str, args: Args, loss_obj: ClassifyLoss, train_class: t.Callable = TrainBase):
+def basic_run(
+        model: M,
+        model_name: str,
+        args: Args,
+        loss_obj: ClassifyLoss,
+        train_class: t.Callable = TrainBase,
+        **kwargs
+):
     """
     base-model family training
     """
@@ -543,4 +603,4 @@ def basic_run(model: M, model_name: str, args: Args, loss_obj: ClassifyLoss, tra
 
     train.scheduler_ = scheduler
     train.optimizer_ = optimizer
-    train.main()
+    train.main(**kwargs)

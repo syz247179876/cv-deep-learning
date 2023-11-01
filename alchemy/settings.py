@@ -1,5 +1,7 @@
 import os
+from pathlib import Path
 ROOT = os.path.dirname(__file__)
+PROJECT_ROOT = Path('../../').resolve()
 
 BAR_TRAIN_COLOR = 'MAGENTA'
 BAR_VALIDATE_COLOR = 'YELLOW'
