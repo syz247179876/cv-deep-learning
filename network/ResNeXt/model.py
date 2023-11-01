@@ -4,6 +4,7 @@ import typing as t
 from torchsummary import summary
 from torchvision.models import resnet50
 
+
 class Conv(nn.Module):
     """
     Basic Conv includes Conv2d(1x1 or 3x3), BN, Relu

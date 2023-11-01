@@ -62,11 +62,11 @@ class SKBottleNeck(nn.Module):
             norm_layer = nn.BatchNorm2d
         if act_layer is None:
             act_layer = nn.ReLU
-        width = int(out_chans * (width_per_group / base_width) * groups)
+        width = int(out_chans * (width_per_group / base_width)) * groups
         self.conv1 = Conv(in_chans, width, 1, 1, norm_layer=norm_layer, act_layer=act_layer)
         self.sk = SKBlock(width, width, num=2, stride=stride, groups=groups, reduction=reduction, norm_layer=norm_layer,
                           act_layer=act_layer)
-        self.conv2 = nn.Conv2d(width, out_chans * self.expansion, 1, bias=False)
+        self.conv3 = nn.Conv2d(width, out_chans * self.expansion, 1, bias=False)
         self.bn = norm_layer(out_chans * self.expansion)
         self.act = act_layer(inplace=True)
         self.down_sample = down_sample
@@ -75,7 +75,7 @@ class SKBottleNeck(nn.Module):
         identity = x
         y = self.conv1(x)
         y = self.sk(y)
-        y = self.conv2(y)
+        y = self.conv3(y)
         y = self.bn(y)
 
         if self.down_sample:

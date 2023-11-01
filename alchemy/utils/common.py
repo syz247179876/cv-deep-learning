@@ -125,6 +125,9 @@ class Args(object):
         self.parser.add_argument('--use_amp', action='store_true', default=False,
                                  help='whether open amp')
 
+        self.parser.add_argument('--weight_suffix', type=str, default='',
+                                 help='Suffix for saving weight files for models')
+
         self.opts = self.parser.parse_args()
         if torch.cuda.is_available():
             self.opts.use_gpu = True
@@ -282,7 +285,8 @@ class TrainBase(object):
         save model, last_accuracy means the best last time
         """
         model_name = f'{self.model_name}-epoch{epoch}-{round(accuracy, 4)}-' \
-                     f'{str(datetime.date.today())}-{"pretrained" if self.opts.pretrained else ""}.pth'
+                     f'{str(datetime.date.today())}{"-pretrained" if self.opts.pretrained else ""}' \
+                     f'{f"-{self.opts.weight_suffix}"}.pth'
         torch.save({
             'last_epoch': epoch,
             'last_accuracy': accuracy,
@@ -346,6 +350,7 @@ class TrainBase(object):
         if os.path.exists(NET_MAP.get(model_name, '')):
             with open(NET_MAP[model_name], 'r') as f:
                 maps = json.load(f)
+            print_log(f'Load map {NET_MAP[model_name]} successfully')
         weight_file = pretrained_weight.get_weight(model_name)
         weights = torch.load(weight_file)
         model_dict = self.model.state_dict()
