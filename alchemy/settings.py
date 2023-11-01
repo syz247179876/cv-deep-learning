@@ -16,11 +16,19 @@ FLOWER_STD = [0.260, 0.237, 0.269]
 
 PRETRAINED_MODEL = {
     'resnet18': os.path.join(ROOT, 'weights/resnet18-f37072fd.pth'),
-    'resnet50': os.path.join(ROOT, 'weights/resnet50-0676ba61.pth'),
-    'resnet101': os.path.join(ROOT, 'weights/resnet101-63fe2227.pth'),
-    'resnet152': os.path.join(ROOT, 'weights/resnet152-394f9c45.pth'),
+    'resnet50': os.path.join(ROOT, 'weights/resnet50-11ad3fa6.pth'),
+    'resnet101': os.path.join(ROOT, 'weights/resnet101-cd907fc2.pth'),
+    'resnet152': os.path.join(ROOT, 'weights/resnet152-f82ba261.pth'),
+    'se_resnet_50': os.path.join(ROOT, 'weights/resnet50-11ad3fa6.pth'),
     'ca_mobilenet_v2_1': os.path.join(ROOT, 'weights/mbv2_ca1.0.pth'),
     'mobilenet_v2_1': os.path.join(ROOT, 'weights/mobilenetv2_1.0-0c6065bc.pth'),
     'mobilenet_v2_075': os.path.join(ROOT, 'weights/mobilenetv2_0.75-dace9791.pth'),
     'mobilenet_v2_05': os.path.join(ROOT, 'weights/mobilenetv2_0.5-eaa6f9ad.pth'),
+}
+
+NET_MAP = {
+    'resnet50': os.path.join(ROOT, 'net_maps/resnet50.json'),
+    'resnet101': os.path.join(ROOT, 'net_maps/resnet101.json'),
+    'resnet152': os.path.join(ROOT, 'net_maps/resnet152.json'),
+    'se_resnet_50': os.path.join(ROOT, 'net_maps/resnet50.json'),
 }

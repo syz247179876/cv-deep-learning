@@ -108,8 +108,8 @@ class SEBottleNeck(nn.Module):
                           norm_layer=norm_layer, act_layer=act_layer)
 
         self.conv3 = nn.Conv2d(width, out_chans * self.expansion, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(out_chans * self.expansion)
-        self.relu3 = act_layer(inplace=True)
+        self.bn = nn.BatchNorm2d(out_chans * self.expansion)
+        self.act = act_layer(inplace=True)
 
         self.se = SEBlock(out_chans * self.expansion, reduction)
         self.down_sample = down_sample
@@ -119,13 +119,13 @@ class SEBottleNeck(nn.Module):
         y = self.conv1(x)
         y = self.conv2(y)
         y = self.conv3(y)
-        y = self.bn3(y)
+        y = self.bn(y)
         y = self.se(y)
 
         if self.down_sample is not None:
             identity = self.down_sample(identity)
         y += identity
-        return self.relu3(y)
+        return self.act(y)
 
 
 class SEResNet(nn.Module):

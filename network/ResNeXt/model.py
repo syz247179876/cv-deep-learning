@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import typing as t
 from torchsummary import summary
-
+from torchvision.models import resnet50
 
 class Conv(nn.Module):
     """

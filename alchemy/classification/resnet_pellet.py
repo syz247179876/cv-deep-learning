@@ -24,13 +24,13 @@ class ResNetLoss(ClassifyLoss):
         super(ResNetLoss, self).__init__()
 
 
-def resnet_run(model_name: str, args: ResNetArgs, loss_obj: ResNetLoss):
+def resnet_run(model_name: str, args: ResNetArgs, loss_obj: ResNetLoss, **kwargs):
     """
     standard resnet family training
     """
     model = globals().get(model_name, None)(num_classes=5, classifier=True)
     assert model is not None, f'{model_name} not defined'
-    basic_run(model, model_name, args, loss_obj)
+    basic_run(model, model_name, args, loss_obj, **kwargs)
 
 
 if __name__ == '__main__':
@@ -40,4 +40,4 @@ if __name__ == '__main__':
     """
     args_ = ResNetArgs()
     loss_obj_ = ResNetLoss()
-    resnet_run(args_.opts.model_name, args_, loss_obj_)
+    resnet_run(args_.opts.model_name, args_, loss_obj_, ignore_layers=['fc', ])
