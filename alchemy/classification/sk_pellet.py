@@ -41,12 +41,6 @@ class SKTrain(TrainBase):
             if 'sk' in name:
                 params.requires_grad = True
 
-    def unfreeze_layers(self):
-        """
-        after some epoch, unfreeze previous layers
-        """
-        pass
-
 
 def sk_run(model_name: str, args: SKArgs, loss_obj: SKLoss, **kwargs):
     """

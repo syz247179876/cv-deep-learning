@@ -128,6 +128,9 @@ class Args(object):
         self.parser.add_argument('--weight_suffix', type=str, default='',
                                  help='Suffix for saving weight files for models')
 
+        self.parser.add_argument('--unfreeze_epoch', type=int, default=0,
+                                 help='the epoch of unfreeze, default is the one-third of the total epoch')
+
         self.opts = self.parser.parse_args()
         if torch.cuda.is_available():
             self.opts.use_gpu = True
@@ -409,6 +412,13 @@ class TrainBase(object):
     def freeze_layers(self):
         pass
 
+    def unfreeze_layers(self):
+        """
+        after some epoch, unfreeze previous layers
+        """
+        for name, params in self.model.named_parameters():
+            params.requires_grad = True
+
     def __train_epoch(
             self,
             model: M,
@@ -501,9 +511,12 @@ class TrainBase(object):
             self.load_pretrained(kwargs.get('ignore_layers'))
         else:
             self.load_model()
-        self.freeze_layers()
+        if self.opts.pretrained:
+            self.freeze_layers()
 
         for e in range(self.last_epoch, self.opts.end_epoch):
+            if self.opts.pretrained and e >= self.opts.unfreeze_epoch:
+                self.unfreeze_layers()
             t1 = time.time()
             avg_acc = self.__train_epoch(self.model, self.loss_obj, self.train_loader, self.validate_loader,
                                          self.optimizer, self.scaler, e)
@@ -599,6 +612,7 @@ def basic_run(
     """
     params = [p for p in model.parameters() if p.requires_grad]
     train = train_class(args, model, model_name, loss_obj=loss_obj, use_amp=args.opts.use_amp)
+    args.opts.unfreeze_epoch = int(args.opts.end_epoch * 0.3)
     print(args.opts)
     optimizer = torch.optim.SGD(params, lr=train.init_lr(), momentum=0.9,
                                 weight_decay=args.opts.weight_decay)
