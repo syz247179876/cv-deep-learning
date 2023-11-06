@@ -40,4 +40,6 @@ NET_MAP = {
     'sk_resnet_50': os.path.join(ROOT, 'net_maps/resnext50.json'),
     'ResNeXt50_32x4d': os.path.join(ROOT, 'net_maps/resnext50.json'),
     'ResNext_50_SC_32x4d': os.path.join(ROOT, 'net_maps/resnext50.json'),
+    'ca_mobilenet_v2_1': os.path.join(ROOT, 'net_maps/ca_mobilenet_v2_1.json'),
+    'mobilenet_v2_1': os.path.join(ROOT, 'net_maps/mobilenet_v2_1.json'),
 }

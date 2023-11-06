@@ -1,5 +1,5 @@
 """
-One-Shot Aggregation used in VoVNet to reduce inference time and memory
+One-Shot Aggregation used in VoVNet to reduce inference time and memory compared DenseNet。
 """
 import torch
 import torch.nn as nn
@@ -15,6 +15,12 @@ class OSA(nn.Module):
     minimizing the cost of MAC memory access.
 
     it also a lightweight model.
+
+    *note:
+    VoVNet: https://arxiv.org/abs/1904.09730
+    VoVNet only aggregates features in the final stage of each module, which preserves the advantages of
+    concatenate in DenseNet and optimizes the utilization of GPU parallelism (reduce the use of 1x1 conv).
+    The input and output channels are the same and MAC is optimized.
     """
 
     def __init__(

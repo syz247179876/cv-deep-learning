@@ -40,13 +40,13 @@ class CATrain(TrainBase):
                 params.requires_grad = False
 
 
-def mobilenet_run(model_name: str, args: CAMobileNetV2Args, loss_obj: CAMobileNetV2Loss):
+def mobilenet_run(model_name: str, args: CAMobileNetV2Args, loss_obj: CAMobileNetV2Loss, **kwargs):
     """
     mobilenet v2 + CA family training
     """
     model = globals().get(model_name, None)(num_classes=5, classifier=True)
     assert model is not None, f'{model_name} not defined'
-    basic_run(model, model_name, args, loss_obj, train_class=CATrain)
+    basic_run(model, model_name, args, loss_obj, train_class=CATrain, **kwargs)
 
 
 if __name__ == '__main__':
@@ -58,4 +58,4 @@ if __name__ == '__main__':
     print(args_.opts)
     # args_.opts.model_name = 'ca_mobilenet_v2_1'
     loss_obj_ = CAMobileNetV2Loss()
-    mobilenet_run(args_.opts.model_name, args_, loss_obj_)
+    mobilenet_run(args_.opts.model_name, args_, loss_obj_, ignore_layers=['classifier_head', ])

@@ -392,6 +392,7 @@ class TrainBase(object):
                                      f'and {key_w}: {weights[key_w].shape} shape not match')
                 new_model_dict[key_p] = weights[key_w]
         else:
+            # TODO: 根据ignore_layers动态过滤layers
             n_l = list(new_model_dict.keys())
             n_w = list(weights.keys())
             for key_p, key_w in zip(n_l[:-2], n_w[: -2]):

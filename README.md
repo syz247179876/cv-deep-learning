@@ -13,10 +13,8 @@
     论文地址：https://openaccess.thecvf.com/content/CVPR2023/papers/Li_SCConv_Spatial_and_Channel_Reconstruction_Convolution_for_Feature_Redundancy_CVPR_2023_paper.pdf  
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/other_utils/conv)
 - EfficientNet (已读论文, 未复现)  
-    论文地址：https://arxiv.org/abs/1905.11946v5  
-- CSPNet (已读论文, 已复现)
-    论文地址：https://arxiv.org/pdf/1911.11929v1.pdf
-    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)
+    论文地址：https://arxiv.org/abs/1905.11946v5
+
 
 #### 2.注意力机制的网络：
 - SENet (已读论文, 已复现)  
@@ -50,6 +48,7 @@
 - Deformable DETR (已读论文, 未复现, 已读源码)  
     论文地址：https://openreview.net/pdf?id=gZ9hCDWe6ke
 
+
 #### 3.动态卷积网络：
 - CondConv + ResNet/MobileNetV2 (已读论文, 已复现)  
     论文地址：https://arxiv.org/abs/1904.04971v3  
@@ -57,6 +56,7 @@
 - ODConv + ResNet/MobileNetV2(已读论文, 已复现)  
     论文地址：https://openreview.net/pdf?id=DmpCfq6Mg39  
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)
+
 
 #### 4.Yolo系列：
 - YoloV1 (已读论文, 已复现)  
@@ -71,7 +71,16 @@
 - YoloV5 (未复现, 已读源码)  
 
 
-#### 5.其他CNN论文：
+#### 5.分割梯度流
+- VoVNet(已复现OSA模块)
+    论文地址：https://arxiv.org/pdf/1904.09730v1.pdf
+    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/other_utils/conv)
+- CSPNet (已读论文, 已复现)
+    论文地址：https://arxiv.org/pdf/1911.11929v1.pdf
+    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)
+
+
+#### 6.其他CNN论文：
 - DenseNet(已读论文, 已复现)
     论文地址：https://arxiv.org/pdf/1608.06993v5.pdf
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)

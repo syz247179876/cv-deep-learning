@@ -24,13 +24,13 @@ class MobileNetV2Loss(ClassifyLoss):
         super(MobileNetV2Loss, self).__init__()
 
 
-def mobilenet_run(model_name: str, args: MobileNetV2Args, loss_obj: MobileNetV2Loss):
+def mobilenet_run(model_name: str, args: MobileNetV2Args, loss_obj: MobileNetV2Loss, **kwargs):
     """
     mobilenet v2 family training
     """
     model = globals().get(model_name, None)(num_classes=5, classifier=True)
     assert model is not None, f'{model_name} not defined'
-    basic_run(model, model_name, args, loss_obj)
+    basic_run(model, model_name, args, loss_obj, **kwargs)
 
 
 if __name__ == '__main__':
@@ -41,4 +41,4 @@ if __name__ == '__main__':
     args_ = MobileNetV2Args()
     print(args_.opts)
     loss_obj_ = MobileNetV2Loss()
-    mobilenet_run(args_.opts.model_name, args_, loss_obj_)
+    mobilenet_run(args_.opts.model_name, args_, loss_obj_, ignore_layers=['fc', ])
