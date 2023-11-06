@@ -73,15 +73,15 @@
 
 #### 5.分割梯度流
 - VoVNet(已复现OSA模块)
-    论文地址：https://arxiv.org/pdf/1904.09730v1.pdf
-    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/other_utils/conv)
+    论文地址：https://arxiv.org/pdf/1904.09730v1.pdf  
+    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/other_utils/conv)  
 - CSPNet (已读论文, 已复现)
-    论文地址：https://arxiv.org/pdf/1911.11929v1.pdf
-    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)
+    论文地址：https://arxiv.org/pdf/1911.11929v1.pdf  
+    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)  
 
 
 #### 6.其他CNN论文：
 - DenseNet(已读论文, 已复现)
-    论文地址：https://arxiv.org/pdf/1608.06993v5.pdf
-    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)
+    论文地址：https://arxiv.org/pdf/1608.06993v5.pdf  
+    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)  
 
