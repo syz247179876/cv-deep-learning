@@ -8,6 +8,7 @@ from .BoTBlock import BoTBlock
 from .DeformConv import DeformConv
 from .CABlock import CABlock
 from .DenseBlock import DenseBlock, TransitionLayer
+from .PConv import PartialConv
 
 __all__ = [
     'SEBlock',
@@ -22,4 +23,5 @@ __all__ = [
     'CABlock',
     'DenseBlock',
     'TransitionLayer',
+    'PartialConv',
 ]
