@@ -14,6 +14,9 @@
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/other_utils/conv)
 - EfficientNet (已读论文, 未复现)  
     [论文地址](https://arxiv.org/abs/1905.11946v5)  
+- FasterNet (已读论文, 未复现)  
+    [论文地址](https://openaccess.thecvf.com/content/CVPR2023/papers/Chen_Run_Dont_Walk_Chasing_Higher_FLOPS_for_Faster_Neural_Networks_CVPR_2023_paper.pdf)  
+    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)  
 
 
 #### 2.注意力机制的网络：
@@ -47,6 +50,8 @@
     [论文地址](https://arxiv.org/abs/2005.12872v3)  
 - Deformable DETR (已读论文, 未复现, 已读源码)  
     [论文地址](https://openreview.net/pdf?id=gZ9hCDWe6ke)  
+- BiFormer(已读论文, 已读源码)  
+    [论文地址](https://paperswithcode.com/paper/biformer-vision-transformer-with-bi-level)
 
 
 #### 3.动态卷积网络：
