@@ -1,0 +1,19 @@
+# config of MobileViT-S
+
+
+# the output channel of each layer in MobileViT-S
+out_chans: [16, 32, 64, 64, 96, 96, 128, 128, 160, 160, 640]
+
+# the dimension of Transformer in each MobileViT Block
+dims: [144, 192, 240]
+
+# the number of repeat according to each layer
+n_repeat_layer: [1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1]
+
+# the repeat number of each Transformer in MobilViT
+n_repeat_transformer: [2, 4, 3]
+
+# number of head
+head_num: 8
+
+mlp_ratio: 4.

@@ -9,6 +9,7 @@ from .DeformConv import DeformConv
 from .CABlock import CABlock
 from .DenseBlock import DenseBlock, TransitionLayer
 from .PConv import PartialConv
+from .MobileViTBlock import MobileViTBlock, MV2Block, MConv
 
 __all__ = [
     'SEBlock',
@@ -24,4 +25,7 @@ __all__ = [
     'DenseBlock',
     'TransitionLayer',
     'PartialConv',
+    'MobileViTBlock',
+    'MV2Block',
+    'MConv'
 ]
