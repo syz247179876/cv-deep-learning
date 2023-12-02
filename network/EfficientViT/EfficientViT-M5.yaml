@@ -1,0 +1,41 @@
+# config of EfficientViT-M5
+
+# size of features input to model
+image_size: 640
+
+# the down-sampling rate of the first EfficientViT Block passed in
+patch_size: 16
+
+# attention mode in each stages
+stages_mode: ['window_attention', 'window_attention', 'window_attention']
+
+# the input dim of each stage
+embed_dims: [192, 288, 384]
+
+# the dimension of K and Q in each stage
+key_dims: [16, 16, 16]
+
+# the number of EfficientViT to stack in each stage
+# At the beginning, the number of stacks was small, mainly because the features learned by the model in shallow
+# layers were low semantic, and excessive stacking would increase computational overhead
+depths: [1, 3, 4]
+
+# the number of head
+num_heads: [3, 3, 4]
+
+# when using window_attention locality, window_size param will work
+window_sizes: [7, 7, 7]
+
+# these kernels used in cascaded group attention(CGA), which used in Token Interation in order to capture
+# local information detail
+kernels: [7, 5, 3, 3]
+
+# the structure of down-sampling, called EfficientViT Subsample
+down_ops: ['sandwich', 2]
+
+# the hidden ratio in FFN, which is less than other Transformer, such as Transformer, ViT, Swin, MobilViT, DETR, BiFormer...
+hidden_ratios: [2, 2, 2]
+
+
+
+

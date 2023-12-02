@@ -39,6 +39,7 @@ class FasterNetBlock(nn.Module):
 
         self.spatial_mixing = PartialConv(dim, n_div, pconv_fw_type)
 
+        # tricks: layer scale & pre_norm/post_norm
         if layer_scale_init_value > 0:
             self.layer_scale = nn.Parameter(layer_scale_init_value * torch.ones((dim)), requires_grad=True)
             self.forward = self.forward_layer_scale
@@ -316,8 +317,10 @@ def fasternet_l(weights: t.Optional[str] = None, cfg: str = 'fasternet_l.yaml'):
 
 
 if __name__ == '__main__':
-    x_ = torch.randn((2, 3, 640, 640))
-    model = fasternet_t0()
+    x_ = torch.randn((2, 3, 640, 640)).to(0)
+    model = fasternet_t0().to(0)
+    from torchsummary import summary
+    summary(model, (3, 640, 640), batch_size=1)
     # s = model.state_dict()
-    for i in model(x_):
-        print(i.size())
+    # for i in model(x_):
+    #     print(i.size())

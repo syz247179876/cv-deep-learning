@@ -55,6 +55,7 @@ class MobileViT(nn.Module):
         if classifier:
             self.classifier_head = nn.Sequential(*(
                 nn.AdaptiveAvgPool2d((1, 1)),
+                nn.Flatten(1),
                 nn.Linear(out_chans[10], num_classes)
             ))
 
@@ -80,9 +81,9 @@ def mobilevit(num_classes: int = 1000, classifier: bool = False, cfg: str = 'mob
 
 if __name__ == '__main__':
     _x = torch.randn((2, 3, 640, 640)).to(0)
-    model = mobilevit(classifier=False).to(0)
+    model = mobilevit(classifier=True).to(0)
     res = model(_x)
     print(res.size())
-    summary(model, (3, 640, 640))
+    summary(model, (3, 640, 640), batch_size=1)
 
 
