@@ -163,16 +163,19 @@ class PatchEmbed(nn.Module):
             self,
             in_chans: int,
             embed_dim: int,
-            resolution: int
+            resolution: int,
+            act_layer: t.Optional[t.Callable] = None
     ):
         super(PatchEmbed, self).__init__()
+        if act_layer is None:
+            act_layer = nn.ReLU
         self.patch_embed = nn.Sequential(
             Conv2dBN(in_chans, embed_dim // 8, ks=3, stride=2, resolution=resolution),
-            nn.ReLU(inplace=True),
+            act_layer(inplace=True),
             Conv2dBN(embed_dim // 8, embed_dim // 4, ks=3, stride=2, resolution=resolution // 2),
-            nn.ReLU(inplace=True),
+            act_layer(inplace=True),
             Conv2dBN(embed_dim // 4, embed_dim // 2, ks=3, stride=2, resolution=resolution // 4),
-            nn.ReLU(inplace=True),
+            act_layer(inplace=True),
             Conv2dBN(embed_dim // 2, embed_dim, ks=3, stride=2, resolution=resolution // 8)
         )
 
@@ -205,10 +208,13 @@ class FFN(nn.Module):
             embed_dim: int,
             hidden_dim: int,
             resolution: int,
+            act_layer: t.Optional[t.Callable] = None,
     ):
         super(FFN, self).__init__()
+        if act_layer is None:
+            act_layer = nn.ReLU
         self.fc1 = Conv2dBN(embed_dim, hidden_dim, ks=1, resolution=resolution)
-        self.act = nn.ReLU(inplace=True)
+        self.act = act_layer(inplace=True)
         self.fc2 = Conv2dBN(hidden_dim, embed_dim, ks=1, resolution=resolution)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -236,7 +242,7 @@ class CascadedGroupAttention(nn.Module):
             num_head: int,
             multi_v: float,
             resolution: int,
-            kernel_size: int,
+            kernels: t.List,
             need_attn_offset: bool = True,
             scale: t.Optional[float] = None,
             act_layer: t.Optional[t.Callable] = None,
@@ -256,16 +262,16 @@ class CascadedGroupAttention(nn.Module):
         self.v_dim = int(multi_v * q_k_dim)
         self.num_head = num_head
         self.multi_v = multi_v
-        self.kernel_size = kernel_size
+        self.kernels = kernels
         self.need_attn_offset = need_attn_offset
 
         qkv_list: t.List[nn.Module] = []
         dwc_list: t.List[nn.Module] = []
 
         # the projection and token interaction (DWC) for each head
-        for _ in range(num_head):
+        for i in range(num_head):
             qkv_list.append(Conv2dBN(embed_dim // num_head, q_k_dim * 2 + self.v_dim, resolution=resolution))
-            dwc_list.append(Conv2dBN(q_k_dim, q_k_dim, kernel_size, groups=q_k_dim, resolution=resolution))
+            dwc_list.append(Conv2dBN(q_k_dim, q_k_dim, kernels[i], groups=q_k_dim, resolution=resolution))
         self.qkv_list = nn.ModuleList(qkv_list)
         self.dwc_list = nn.ModuleList(dwc_list)
 
@@ -371,7 +377,7 @@ class LocalWindowAttention(nn.Module):
             multi_v: float,
             resolution: int,
             window_resolution: int,
-            kernel_size: int,
+            kernels: t.List,
             act_layer: t.Optional[t.Callable] = None
     ):
         super(LocalWindowAttention, self).__init__()
@@ -387,7 +393,7 @@ class LocalWindowAttention(nn.Module):
             num_head,
             multi_v,
             window_resolution,
-            kernel_size,
+            kernels,
             act_layer=act_layer
         )
 
@@ -412,7 +418,7 @@ class LocalWindowAttention(nn.Module):
             if padding:
                 # fill reversed, from C -> W -> H
                 x = torch.nn.functional.pad(x, (0, 0, 0, pad_r, 0, pad_b))
-            pH, pW = h + pad_b, w + pad_r
+            pH, pW = h_ + pad_b, w_ + pad_r
             nH = pH // self.window_resolution
             nW = pW // self.window_resolution
             #  window partition, BHWC -> B(nHh)(nWw)C -> BnHnWhwC -> (BnHnW)hwC -> (BnHnW)Chw
@@ -437,15 +443,16 @@ class EfficientViTBlock(nn.Module):
 
     def __init__(
             self,
-            stage_mode: str,
             embed_dim: int,
+            stage_mode: str,
             q_k_dim: int,
             num_head: int,
-            multi_v: float,
-            resolution: int,
             window_resolution: int,
-            kernel_size: int,
-            hidden_ratio: int = 2
+            resolution: int,
+            kernels: t.List,
+            multi_v: float,
+            hidden_ratio: int = 2,
+            act_layer: t.Optional[t.Callable] = None
     ):
         """
         multi_v means multiplier for the query dim for value dimension.
@@ -461,19 +468,19 @@ class EfficientViTBlock(nn.Module):
         # (DWC + FFN)
         self.dwc0 = Residual(Conv2dBN(embed_dim, embed_dim, 3, 1, groups=embed_dim,
                                       bn_weight_init=0., resolution=resolution))
-        self.ffn0 = Residual(FFN(embed_dim, hidden_dim, resolution))
+        self.ffn0 = Residual(FFN(embed_dim, hidden_dim, resolution, act_layer=act_layer))
 
         # (CGA)
         assert stage_mode in ['window_attention', ], f'not support attention module {stage_mode}'
         if stage_mode == 'window_attention':
             self.mixer = Residual(LocalWindowAttention(embed_dim, q_k_dim, num_head, multi_v,
                                                        resolution=resolution, window_resolution=window_resolution,
-                                                       kernel_size=kernel_size))
+                                                       kernels=kernels, act_layer=act_layer))
 
         # (DWC + FFN)
         self.dwc1 = Residual(Conv2dBN(embed_dim, embed_dim, 3, 1, groups=embed_dim,
                                       bn_weight_init=0., resolution=resolution))
-        self.ffn1 = Residual(FFN(embed_dim, hidden_dim, resolution))
+        self.ffn1 = Residual(FFN(embed_dim, hidden_dim, resolution, act_layer=act_layer))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.ffn0(self.dwc0(x))
@@ -503,14 +510,14 @@ class PatchMerging(nn.Module):
 
         ffn0_hidden_chans = int(hidden_ratio * in_chans)
         ffn1_hidden_chans = int(hidden_ratio * out_chans)
-        hidden_chans = int(hidden_ratio * 4)
+        hidden_chans = int(in_chans * 4)
 
         if act_layer is None:
             act_layer = nn.ReLU
 
         # (DWC + FFN)
         self.dwc0 = Residual(Conv2dBN(in_chans, in_chans, 3, 1, groups=in_chans, resolution=old_resolution))
-        self.ffn0 = Residual(FFN(in_chans, ffn0_hidden_chans, resolution=old_resolution))
+        self.ffn0 = Residual(FFN(in_chans, ffn0_hidden_chans, resolution=old_resolution, act_layer=act_layer))
 
         # (down-sampling), inverted residual block
         self.down_sampling = nn.Sequential(
@@ -523,7 +530,7 @@ class PatchMerging(nn.Module):
 
         # (DWC + FFN)
         self.dwc1 = Residual(Conv2dBN(out_chans, out_chans, 3, 1, groups=out_chans, resolution=new_resolution))
-        self.ffn1 = Residual(FFN(out_chans, ffn1_hidden_chans, resolution=new_resolution))
+        self.ffn1 = Residual(FFN(out_chans, ffn1_hidden_chans, resolution=new_resolution, act_layer=act_layer))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.ffn0(self.dwc0(x))
@@ -612,12 +619,11 @@ class EfficientViT(nn.Module):
         # attn_ratio means V is a multiple of Q and K on the channel
         attn_ratios = [embed_dims[i] / (key_dims[i] * num_heads[i]) for i in range(len(embed_dims))]
         # step2: Three EfficientViT and Two EfficientViT Subsample stack
-        self.backbone = []
         self.blocks1 = []
         self.blocks2 = []
         self.blocks3 = []
-        for i, (stage_mode, embed_dim, depth, num_head, window_size, kernel, key_dim, hidden_ratio) in enumerate(
-                zip(stages_mode, embed_dims, depths, num_heads, window_sizes, kernels, key_dims, hidden_ratios)
+        for i, (stage_mode, embed_dim, depth, num_head, window_size, key_dim, hidden_ratio) in enumerate(
+                zip(stages_mode, embed_dims, depths, num_heads, window_sizes, key_dims, hidden_ratios)
         ):
             for _ in range(depth):
                 eval('self.blocks' + str(i + 1)).append(EfficientViTBlock(
@@ -628,7 +634,7 @@ class EfficientViT(nn.Module):
                     multi_v=attn_ratios[i],
                     resolution=resolution,
                     window_resolution=window_size,
-                    kernel_size=kernel,
+                    kernels=kernels,
                     hidden_ratio=hidden_ratio
                 ))
 
@@ -641,12 +647,6 @@ class EfficientViT(nn.Module):
         self.blocks2 = nn.Sequential(*self.blocks2)
         self.blocks3 = nn.Sequential(*self.blocks3)
 
-        self.backbone = nn.Sequential(
-            self.patch_embed,
-            self.blocks1,
-            self.blocks2,
-            self.blocks3
-        )
         self.classifier = classifier
 
         if classifier:
@@ -657,7 +657,10 @@ class EfficientViT(nn.Module):
             )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.backbone(x)
+        x = self.patch_embed(x)
+        x = self.blocks1(x)
+        x = self.blocks2(x)
+        x = self.blocks3(x)
         if self.classifier:
             x = self.classifier_head(x)
         return x
@@ -679,10 +682,11 @@ def efficientvit(num_classes: int = 1000, classifier: bool = False, cfg: str = '
 
 
 if __name__ == '__main__':
-    _x = torch.randn((2, 3, 640, 640)).to(0)
+    _x = torch.randn((1, 3, 224, 224)).to(0)
     model = efficientvit(classifier=False).to(0)
-    res = model(_x)
-    print(res.size())
-    from torchsummary import summary
-    summary(model, (3, 640, 640), batch_size=1)
+    # res = model(_x)
+    # print(res.size())
 
+    from torchsummary import summary
+
+    summary(model, (3, 224, 224), batch_size=1)
