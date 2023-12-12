@@ -17,7 +17,9 @@
 - FasterNet (已读论文, 未复现)  
     [论文地址](https://openaccess.thecvf.com/content/CVPR2023/papers/Chen_Run_Dont_Walk_Chasing_Higher_FLOPS_for_Faster_Neural_Networks_CVPR_2023_paper.pdf)  
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)  
-
+- EfficientViT (已读论文, 已复现)  
+    [论文地址](https://openaccess.thecvf.com/content/CVPR2023/papers/Liu_EfficientViT_Memory_Efficient_Vision_Transformer_With_Cascaded_Group_Attention_CVPR_2023_paper.pdf)  
+    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)   
 
 #### 2.注意力机制的网络：
 - SENet (已读论文, 已复现)  
@@ -85,8 +87,15 @@
     [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)  
 
 
-#### 6.其他CNN论文：
-- DenseNet(已读论文, 已复现)
-    [论文地址](https://arxiv.org/pdf/1608.06993v5.pdf)  
-    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)  
+#### 6.特征融合
+- AFPN(已读论文, 已复现)  
+    [论文地址](https://arxiv.org/pdf/2306.15988v2.pdf)  
+    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/other_utils/conv)  
+
+#### 7.其他CNN论文：
+- DenseNet(已读论文, 已复现)  
+    [论文地址](https://arxiv.org/pdf/1608.06993v5.pdf)    
+    [代码link](https://github.com/syz247179876/cv-deep-learning/tree/main/network)    
+- Dense Distinct Queries(DDQ) (已读论文, 未复现)  
+    [论文地址](https://openaccess.thecvf.com/content/CVPR2023/papers/Zhang_Dense_Distinct_Query_for_End-to-End_Object_Detection_CVPR_2023_paper.pdf)  
 
