@@ -357,6 +357,8 @@ class CascadedGroupAttention(nn.Module):
                 attn = (q.transpose(-2, -1) @ k) * self.scale
             attn = attn.softmax(dim=-1)
             # (B, v_dim/h, N) @ (B, N, N) ==> (B, v_dim/h, N) ==> (B, v_dim/h, H, W)
+            if isinstance(v, (torch.HalfTensor, torch.cuda.HalfTensor)):
+                attn = attn.half()
             feat = (v @ attn.transpose(-2, -1)).reshape(b, self.v_dim, h, w)
             feature_outs.append(feat)
         # (B, embed_dim, H, W)
@@ -683,7 +685,7 @@ def efficientvit(num_classes: int = 1000, classifier: bool = False, cfg: str = '
 
 if __name__ == '__main__':
     _x = torch.randn((1, 3, 224, 224)).to(0)
-    model = efficientvit(classifier=False).to(0)
+    model = efficientvit(classifier=False, cfg='EfficientViT-M4.yaml').to(0)
     # res = model(_x)
     # print(res.size())
 

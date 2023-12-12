@@ -60,7 +60,7 @@ class BasicBlock(nn.Module):
         # maybe use conv to down sample
         self.conv1 = nn.Conv2d(in_chans, out_chans, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn1 = norm_layer(out_chans)
-        self.act = act_layer
+        self.act = act_layer(inplace=True)
         self.conv2 = nn.Conv2d(out_chans, out_chans, kernel_size=3, padding=1, bias=False)
         self.bn2 = norm_layer(out_chans)
 
