@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import typing as t
 from einops import rearrange
-
+import torch.nn.functional as F
 __all__ = ['MV2Block', 'MobileViTBlock', 'Conv']
 
 
@@ -209,12 +209,14 @@ class MobileViTBlock(nn.Module):
             drop_path_ratio: float = 0.,
             qk_bias: bool = False,
             qk_scale: t.Optional[float] = None,
+            auto_pad: bool = True,
     ):
         """
         depth: the number of MobileViT block
         """
         super(MobileViTBlock, self).__init__()
         # use to learn local representation
+        self.auto_pad = auto_pad
         self.ph, self.pw = patch_size, patch_size
         self.conv1 = Conv(channel, channel, kernel_size=kernel_size, act_layer=nn.SiLU)
         self.conv2 = Conv(channel, dim, kernel_size=1, act_layer=nn.SiLU)
@@ -227,6 +229,21 @@ class MobileViTBlock(nn.Module):
         self.conv4 = Conv(2 * channel, channel, kernel_size=kernel_size, act_layer=nn.SiLU)
 
     def forward(self, x: torch.Tensor):
+
+        if self.auto_pad:
+            n, c, _h, _w = x.size()
+
+            pad_l = pad_t = 0
+            pad_r = (self.pw - _w % self.pw) % self.pw
+            pad_b = (self.ph - _h % self.ph) % self.ph
+            x = F.pad(x, (pad_l, pad_r,  # dim=-1
+                          pad_t, pad_b,  # dim=-2
+                          0, 0))  # dim=-3
+            _, c, h, w = x.size()  # padded size
+        else:
+            b, c, h, w = x.size()
+            assert h % self.ph == 0 and w % self.pw == 0
+
         identity = x
         y = self.conv1(x)
         y = self.conv2(y)

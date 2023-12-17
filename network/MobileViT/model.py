@@ -85,5 +85,9 @@ if __name__ == '__main__':
     res = model(_x)
     print(res.size())
     summary(model, (3, 640, 640), batch_size=1)
+    from thop import profile
+    flops, params = profile(model, (_x, ))
+    print("FLOPs=", str(flops / 1e9) + '{}'.format("G"))
+    print("params=", str(params / 1e6) + '{}'.format("M"))
 
 

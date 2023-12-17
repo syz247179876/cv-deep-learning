@@ -90,13 +90,13 @@ class InvertedResidual(nn.Module):
                               act_layer=act_layer)
 
             self.conv2 = nn.Conv2d(hidden_chans, out_chans, 1, bias=False)
-            self.bn2 = nn.BatchNorm2d(out_chans)
+            self.bn2 = norm_layer(out_chans)
         else:
             self.conv1 = Conv(in_chans, hidden_chans, 1, norm_layer=norm_layer, act_layer=act_layer)
             self.conv2 = Conv(hidden_chans, hidden_chans, 3, stride, groups=hidden_chans, norm_layer=norm_layer,
                               act_layer=act_layer)
             self.conv3 = nn.Conv2d(hidden_chans, out_chans, 1, bias=False)
-            self.bn3 = nn.BatchNorm2d(out_chans)
+            self.bn3 = norm_layer(out_chans)
         self.expand_t = expand_t
         self.out_chans = out_chans
 
