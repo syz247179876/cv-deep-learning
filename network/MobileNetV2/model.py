@@ -192,8 +192,12 @@ def mobilenet_v2_05(num_classes: int = 1000, classifier: bool = True):
 
 
 if __name__ == '__main__':
-    _x = torch.rand(2, 3, 224, 224).to(0)
-    model = mobilenet_v2_1(1000).to(0)
+    _x = torch.rand(2, 3, 640, 640).to(0)
+    model = mobilenet_v2_1(classifier=False).to(0)
     res = model(_x)
     print(res.size())
-    summary(model, (3, 224, 224))
+    summary(model, (3, 640, 640))
+    from thop import profile
+    f, p = profile(model, (_x, ))
+    print("FLOPs=", str(f / 1e9) + '{}'.format("G"))
+    print("params=", str(p / 1e6) + '{}'.format("M"))

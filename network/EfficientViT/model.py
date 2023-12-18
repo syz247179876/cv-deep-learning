@@ -620,7 +620,7 @@ class EfficientViT(nn.Module):
         resolution = image_size // patch_size
         # attn_ratio means V is a multiple of Q and K on the channel
         attn_ratios = [embed_dims[i] / (key_dims[i] * num_heads[i]) for i in range(len(embed_dims))]
-        # step2: Three EfficientViT and Two EfficientViT Subsample stack
+        # step2: Three EfficientViT Block and Two EfficientViT Subsample stack
         self.blocks1 = []
         self.blocks2 = []
         self.blocks3 = []

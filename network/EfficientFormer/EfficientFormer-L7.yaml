@@ -1,0 +1,53 @@
+# EfficientFormer-L7
+
+# Image size input to the network
+image_size: 640
+
+# the stack number of MB4D/MB3D, the last stack number is MB3D
+depths: [6, 6, 8, 8]
+
+# input the dim to each stage
+embed_dims: [96, 192, 384, 768]
+
+# if use MB3D, it works
+attn_ratios: [4, 4, 4, 4]
+
+# if use MB3D, it works
+num_head: 8
+
+# if use MB4D, it works
+pool_size: 3
+
+# the dimension of query and key
+q_k_dim: 16
+
+# channel expansion rate of MLP layer
+mlp_ratio: 4.
+
+# used in FFN3D/FFN4D
+drop_ratio: 0.
+
+# used in Residual Block
+drop_path_ratio: 0.
+
+# whether open downsample
+downsamples: [true, true, true, true]
+
+# downsample kernel size
+down_patch_size: 3
+
+# downsample stride
+down_stride: 2
+
+# ensure that the gradients contributed by each branch are more balanced
+use_layer_scale: true
+
+layer_scale_init_value: 1e-5
+
+# the number of MB3D
+vit_num: 8
+
+norm_layer: 'ln'
+
+act_layer: 'gelu'
+
