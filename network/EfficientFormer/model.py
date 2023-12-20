@@ -168,7 +168,8 @@ class MB4D(nn.Module):
         self.mlp = FFN4D(dim, hidden_chans, drop, act_layer=act_layer)
         self.drop_path = DropPath(drop_prob=drop_path) if drop_path > 0. else nn.Identity()
         self.use_layer_scale = use_layer_scale
-        # use
+        # use it to maintain a balance of gradient contributions for each branch,
+        # to avoid the result of a branch calculation being too large
         if use_layer_scale:
             self.layer_scale_1 = nn.Parameter(
                 layer_scale_init_value * torch.ones((dim,)), requires_grad=True
@@ -499,7 +500,7 @@ class EfficientFormer(nn.Module):
             if i >= len(depths) - 1:
                 break
 
-            # add PatchMerging
+            # step 3: downstream task, add PatchMerging
             if downsamples[i] or embed_dims[i] != embed_dims[i + 1]:
                 # downsampling between two stages
                 backbone.append(PatchMerging(
@@ -510,7 +511,7 @@ class EfficientFormer(nn.Module):
                 ))
                 resolution //= 2
 
-        # step 3: downstream task
+        # step 4: if you need classify, define classifier
         if classifier:
             self.classifier_head = nn.Sequential(
                 nn.AdaptiveAvgPool2d((1, 1)),
