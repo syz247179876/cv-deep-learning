@@ -11,7 +11,7 @@ depths: [3, 2, 6, 4]
 embed_dims: [48, 96, 224, 448]
 
 # if use MB3D, it works
-attn_ratios: [4, 4, 4, 4, 4]
+attn_ratios: [4, 4, 4, 4]
 
 # if use MB3D, it works
 num_head: 8

@@ -576,7 +576,7 @@ def efficientformer_l7(num_classes: int = 1000, classifier: bool = False, cfg: s
 
 
 if __name__ == '__main__':
-    _x = torch.randn((1, 3, 224, 224)).to(0)
+    _x = torch.randn((1, 3, 640, 640)).to(0)
     model = efficientformer_l1(classifier=False).to(0)
     res = model(_x)
     print(res.size())
@@ -584,7 +584,7 @@ if __name__ == '__main__':
     from torchsummary import summary
     from thop import profile
 
-    summary(model, (3, 224, 224), batch_size=1)
+    summary(model, (3, 640, 640), batch_size=1)
     flops, params = profile(model, (_x,))
     print(f"FLOPs={str(flops / 1e9)}G")
     print(f"params={str(params / 1e6)}M")

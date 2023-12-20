@@ -19,7 +19,7 @@ num_head: 8
 pool_size: 3
 
 # the dimension of query and key
-q_k_dim: 16
+q_k_dim: 32
 
 # channel expansion rate of MLP layer
 mlp_ratio: 4.
