@@ -50,10 +50,10 @@ class CABlock(nn.Module):
             act_layer = nn.ReLU6
         self.in_chans = in_chans
         self.out_chans = out_chans
-        # (C, 1, W)
-        self.gap_h = nn.AdaptiveAvgPool2d((1, None))
         # (C, H, 1)
-        self.gap_w = nn.AdaptiveAvgPool2d((None, 1))
+        self.gap_h = nn.AdaptiveAvgPool2d((None, 1))
+        # (C, 1, W)
+        self.gap_w = nn.AdaptiveAvgPool2d((1, None))
 
         hidden_chans = max(8, in_chans // reduction)
         self.conv1 = nn.Conv2d(in_chans, hidden_chans, 1)
@@ -64,7 +64,7 @@ class CABlock(nn.Module):
         self.attn_w = nn.Conv2d(hidden_chans, out_chans, 1)
         self.sigmoid = nn.Sigmoid()
 
-        self._init_weight()
+        # self._init_weight()
 
     def _init_weight(self):
         for m in self.modules():
@@ -86,20 +86,20 @@ class CABlock(nn.Module):
         b, c, h, w = x.size()
         x_h = self.gap_h(x)
         x_w = self.gap_w(x).permute(0, 1, 3, 2)
-        y = torch.cat((x_h, x_w), dim=-1)
+        y = torch.cat((x_h, x_w), dim=2)
         y = self.conv1(y)
         y = self.bn1(y)
         y = self.act(y)
 
         # split
-        x_h, x_w = torch.split(y, [h, w], dim=-1)
+        x_h, x_w = torch.split(y, [h, w], dim=2)
         x_w = x_w.permute(0, 1, 3, 2)
 
         # compute attention
         a_h = self.sigmoid(self.attn_h(x_h))
         a_w = self.sigmoid(self.attn_w(x_w))
 
-        return identity * a_h * a_w
+        return identity * a_w * a_h
 
 
 if __name__ == '__main__':

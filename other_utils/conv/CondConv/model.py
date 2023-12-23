@@ -19,14 +19,15 @@ class RoutingFunc(nn.Module):
 
     def __init__(self, in_chans: int, num_experts: int, drop_ratio: float = 0.):
         super(RoutingFunc, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        # self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.dropout = nn.Dropout(drop_ratio)
         self.fc = nn.Conv2d(in_chans, num_experts, kernel_size=1, bias=True)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x: torch.Tensor):
-        x = self.avg_pool(x)
-        # x = torch.flatten(x, start_dim=1)
+        # x = self.avg_pool(x)
+        # (b, c, 1, 1)
+        x = x.mean((2, 3), keepdim=True)
         x = self.sigmoid(self.fc(self.dropout(x)))
         return x.view(x.size(0), x.size(1))
 

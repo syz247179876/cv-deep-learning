@@ -8,6 +8,8 @@ from .DeformResNet import resnet_50_deform, resnet_101_deform
 from .MobileNetV2 import mobilenet_v2_1, mobilenet_v2_075, mobilenet_v2_05
 from .CSPResNet import csp_resnet_50
 from .EfficientViT import efficientvit
+from .EfficientFormer import efficientformer_l1, efficientformer_l3, efficientformer_l7
+from .CloFormer import cloformer
 
 # model
 __all__ = [
@@ -58,5 +60,13 @@ __all__ = [
 
     # EfficientViT
     'efficientvit',
+
+    # EfficientFormer
+    'efficientformer_l1',
+    'efficientformer_l3',
+    'efficientformer_l7',
+    
+    # CloFormer
+    'cloformer',
 
 ]

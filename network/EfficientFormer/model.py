@@ -11,6 +11,8 @@ from timm.models.layers import DropPath
 
 from other_utils.utils.util import build_norm, build_act
 
+__all__ = ['efficientformer_l1', 'efficientformer_l3', 'efficientformer_l7']
+
 
 class Conv(nn.Module):
     """
@@ -435,6 +437,30 @@ class MetaBlock(nn.Module):
 
 class EfficientFormer(nn.Module):
     """
+    This paper conducts the following analysis:
+
+    1.Patch embedding(stem) with large kernel and stride is a speed bottleneck on mobile devices. so, the
+    non-overlapping patch embedding can be replaced by a convolution stem with fast downsampling that consists of
+    several hardware-efficient 3x3 convolutions
+
+    2.Consistent feature dimension is important for the choice of token mixer. For example, the reshape/view/rearrange
+    and other operations that alter dimensions may be speed bottleneck for MHSA. so, it can use Pooling operation
+    or AttnConv based on convolution to replace traditional MHSA, or reduce the number of reshape operations in Model.
+
+    3.Conv-BN is more latency-favorable than LN(GN)-Linear and the accuracy drawback is generally acceptable.
+    because, Conv-BN can be fused into a new Conv for inference speedup that based on the idea of reparameterization
+    which introduced in RepVGG.
+
+    4.The latency of nonlinearity is hardware and compiler dependent.
+
+    Structure of EfficientFormer:
+    1.Stem with two 3x3, s=2 Conv
+    2.using Pooling as token mixer in MB4D, Conv1x1-BN-GeLU to build FFN
+    3.using standard Transformable Block as MB4D, MHSA as token mixer in MB4D, LN-Linear-GeLU to build FFN
+    4.EfficientFormer also have four stages, the first three stages use MB4D, while the forth stage use MB3D,
+    one of the reasons is that the computational complexity of MHSA is proportional to the square of the image size,
+    also, MB4D and MB3D are not used interchangeably in order to reduce reshaping operations.
+
 
     """
 
@@ -577,7 +603,7 @@ def efficientformer_l7(num_classes: int = 1000, classifier: bool = False, cfg: s
 
 
 if __name__ == '__main__':
-    _x = torch.randn((1, 3, 640, 640)).to(0)
+    _x = torch.randn((1, 3, 224, 224)).to(0)
     model = efficientformer_l1(classifier=False).to(0)
     res = model(_x)
     print(res.size())
@@ -585,7 +611,7 @@ if __name__ == '__main__':
     from torchsummary import summary
     from thop import profile
 
-    summary(model, (3, 640, 640), batch_size=1)
+    summary(model, (3, 224, 224), batch_size=1)
     flops, params = profile(model, (_x,))
     print(f"FLOPs={str(flops / 1e9)}G")
     print(f"params={str(params / 1e6)}M")

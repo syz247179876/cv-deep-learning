@@ -1,0 +1,34 @@
+# CloFormer-S cfg
+
+# input the dim to each stage
+embed_dims: [64, 128, 224, 448]
+
+# the stack number of CloBlock in different layers
+depths: [2, 2, 6, 2]
+
+# the number of multi-head
+num_heads: [4, 8, 14, 28]
+
+# The number of heads in local and global branches, sum of them equal to num_heads[i]
+# The number of heads also indicates the number of channels occupied
+group_splits: [[3, 1], [4, 4], [7, 7], [7, 21]]
+
+# In order to improve the receptive field and diversity of receptive fields in the local branches that
+# generates context-aware weight
+kernel_sizes: [[3], [5], [7], [9]]
+
+# window size used in global branch, it equals to Pooling stride, it is used for self attention based on local windows
+# As the image scale decreases, the window size also decreases
+window_sizes: [8, 4, 2, 1]
+
+mlp_kernel_sizes: [5, 5, 5, 5]
+
+mlp_ratios: [4, 4, 4, 4]
+
+attn_drop: 0.
+
+mlp_drop: 0.
+
+qkv_bias: True
+
+drop_path_rate: 0.06
